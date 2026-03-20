@@ -171,14 +171,8 @@ deploy_cf() {
   step "检查 S3 凭据"
   CRED_COUNT=$(npx wrangler d1 execute tg-s3-db --remote --command="SELECT COUNT(*) as cnt FROM credentials" --json --yes 2>&1 | grep -o '"cnt":[0-9]*' | head -1 | grep -o '[0-9]*') || CRED_COUNT=""
   if [ "$CRED_COUNT" = "0" ] || [ -z "$CRED_COUNT" ]; then
-    # 如果 .env 提供了 S3 凭据, 用它; 否则自动生成
-    if [ -n "${S3_ACCESS_KEY_ID:-}" ] && [ -n "${S3_SECRET_ACCESS_KEY:-}" ]; then
-      INIT_AK="$S3_ACCESS_KEY_ID"
-      INIT_SK="$S3_SECRET_ACCESS_KEY"
-    else
-      INIT_AK="TGS3$(gen_random 16)"
-      INIT_SK="$(gen_random 40)"
-    fi
+    INIT_AK="TGS3$(gen_random 16)"
+    INIT_SK="$(gen_random 40)"
     npx wrangler d1 execute tg-s3-db --remote --command="INSERT OR IGNORE INTO credentials (access_key_id, secret_access_key, name, buckets, permission) VALUES ('$INIT_AK', '$INIT_SK', 'admin', '*', 'admin')" --yes 2>&1 || true
     log "初始 admin S3 凭据已创建"
     echo -e "  ${CYAN}Access Key ID:     ${INIT_AK}${NC}"
@@ -193,16 +187,10 @@ deploy_cf() {
     GENERATED_SK=""
   fi
 
-  # 设置 secrets (BEARER_TOKEN 已移除, webhook secret 从 TG_BOT_TOKEN 派生)
+  # 设置 secrets (webhook secret 从 TG_BOT_TOKEN 派生，无需单独设置)
   step "配置 Worker secrets"
   echo "$TG_BOT_TOKEN" | npx wrangler secret put TG_BOT_TOKEN 2>&1 || true
   echo "$DEFAULT_CHAT_ID" | npx wrangler secret put DEFAULT_CHAT_ID 2>&1 || true
-
-  # Legacy S3 env vars (for backwards compat; new deployments use D1 credentials)
-  if [ -n "${S3_ACCESS_KEY_ID:-}" ]; then
-    echo "$S3_ACCESS_KEY_ID" | npx wrangler secret put S3_ACCESS_KEY_ID 2>&1 || true
-    echo "$S3_SECRET_ACCESS_KEY" | npx wrangler secret put S3_SECRET_ACCESS_KEY 2>&1 || true
-  fi
 
   if [ -n "${VPS_URL:-}" ]; then
     echo "$VPS_URL" | npx wrangler secret put VPS_URL 2>&1 || true

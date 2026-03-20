@@ -17,20 +17,11 @@ Toute la configuration se fait via des variables d'environnement. Pour le deploi
 
 | Variable | Description | Generee par |
 |----------|-------------|-------------|
-| `BEARER_TOKEN` | Secret partage pour la verification du webhook Bot et l'authentification interne | `deploy.sh` (chaine aleatoire de 48 caracteres) |
 | `VPS_SECRET` | Secret d'authentification entre le Worker et le processeur | `deploy.sh` (chaine aleatoire de 48 caracteres) |
 | Identifiants S3 | Cle d'acces + cle secrete pour l'authentification API S3 | `deploy.sh` (crees dans la table D1 `credentials`) |
+| Secret webhook | Secret de verification du webhook Telegram | Derive de `TG_BOT_TOKEN` via HMAC-SHA256 |
 
 Les identifiants S3 sont affiches une seule fois lors du deploiement. Gerez-les ensuite dans l'onglet **Keys** de la Mini App (creer, revoquer, definir des permissions par bucket).
-
-### Identifiants S3 ancienne version (optionnel)
-
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| `S3_ACCESS_KEY_ID` | Ancienne cle d'acces S3 unique (fallback si D1 n'a pas d'identifiants) | `myaccesskey` |
-| `S3_SECRET_ACCESS_KEY` | Ancienne cle secrete S3 unique | `mysecretkey123` |
-
-Les nouveaux deploiements utilisent le systeme multi-identifiants D1. Ces variables ne sont necessaires que pour la compatibilite avec les deploiements existants.
 
 ### Cloudflare (deploiement Docker)
 
@@ -109,7 +100,7 @@ Le gestionnaire planifie s'execute toutes les 6 heures et effectue :
 ## Notes de securite
 
 - Les **identifiants S3** sont stockes dans D1 et utilises pour la verification de signature AWS SigV4. Des valeurs aleatoires robustes sont generees automatiquement. Gerez-les dans l'onglet Keys de la Mini App.
-- Le **BEARER_TOKEN** authentifie les appels webhook Telegram et la validation initData de la Mini App. Genere automatiquement s'il n'est pas defini.
+- Le **secret webhook** est derive de maniere deterministe de `TG_BOT_TOKEN` via HMAC-SHA256. Aucune variable d'environnement separee n'est necessaire.
 - Le **VPS_SECRET** authentifie la communication entre le Worker et le processeur. Genere automatiquement s'il n'est pas defini.
 - Le **CLOUDFLARE_API_TOKEN** dispose d'un acces en ecriture a votre compte CF. Ne le commitez jamais dans git.
 - Le fichier `.env` est inclus dans `.gitignore` et `.dockerignore` par defaut.

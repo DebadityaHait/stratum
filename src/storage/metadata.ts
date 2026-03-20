@@ -574,8 +574,8 @@ export class MetadataStore {
     const nowMs = Math.floor(Date.now() / 1000) * 1000;
     const now = new Date(nowMs).toISOString();
     const lockUntil = new Date(nowMs + lockoutMinutes * 60 * 1000).toISOString();
-    // Atomically increment attempts and set locked_until when threshold is reached
-    await this.db.prepare(`
+    // Atomically increment attempts, set locked_until when threshold reached, and return count in one query
+    const row = await this.db.prepare(`
       INSERT INTO share_password_attempts (token, ip, attempts, last_attempt, locked_until)
       VALUES (?, ?, 1, ?, NULL)
       ON CONFLICT(token, ip) DO UPDATE SET
@@ -585,10 +585,8 @@ export class MetadataStore {
           WHEN share_password_attempts.attempts + 1 >= ? THEN ?
           ELSE share_password_attempts.locked_until
         END
-    `).bind(token, ip, now, maxAttempts, lockUntil).run();
-    const row = await this.db.prepare(
-      'SELECT attempts FROM share_password_attempts WHERE token = ? AND ip = ?'
-    ).bind(token, ip).first<{ attempts: number }>();
+      RETURNING attempts
+    `).bind(token, ip, now, maxAttempts, lockUntil).first<{ attempts: number }>();
     return row?.attempts ?? 1;
   }
 

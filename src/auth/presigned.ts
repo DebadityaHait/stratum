@@ -9,29 +9,21 @@ function awsUriEncode(str: string): string {
 }
 
 /**
- * Generate a presigned URL using the first available admin credential.
- * Priority: D1 credentials table -> legacy env vars.
+ * Generate a presigned URL using the first available admin credential from D1.
  */
 export async function generatePresignedUrl(params: {
   bucket: string; key: string; method?: string; expiresIn?: number; env: Env; baseUrl: string;
 }): Promise<string> {
   const { bucket, key, method = 'GET', expiresIn: rawExpires = 3600, env, baseUrl } = params;
 
-  // Resolve credential: prefer D1, fallback to env vars
-  let accessKeyId: string;
-  let secretAccessKey: string;
   const store = new MetadataStore(env);
   const creds = await store.listCredentials();
   const adminCred = creds.find(c => c.is_active && c.permission === 'admin');
-  if (adminCred) {
-    accessKeyId = adminCred.access_key_id;
-    secretAccessKey = adminCred.secret_access_key;
-  } else if (env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY) {
-    accessKeyId = env.S3_ACCESS_KEY_ID;
-    secretAccessKey = env.S3_SECRET_ACCESS_KEY;
-  } else {
-    throw new Error('No S3 credentials available for presigned URL generation');
+  if (!adminCred) {
+    throw new Error('No admin credential available for presigned URL generation. Create one in Mini App Keys tab.');
   }
+  const accessKeyId = adminCred.access_key_id;
+  const secretAccessKey = adminCred.secret_access_key;
 
   // S3 caps presigned URL expiry at 7 days (604800 seconds)
   const expiresIn = Math.min(Math.max(1, rawExpires), 604800);
@@ -54,9 +46,12 @@ export async function generatePresignedUrl(params: {
   const sortedParams = [...url.searchParams.entries()].sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0);
   const queryString = sortedParams.map(([k, v]) => `${awsUriEncode(k)}=${awsUriEncode(v)}`).join('&');
 
+  // Use url.pathname for canonical URI to match what sigv4 verifier sees.
+  // URL parser may normalize percent-encoding (e.g. %21→! for chars outside path percent-encode set),
+  // so we must sign with the normalized path, not the raw awsUriEncode output.
   const canonicalRequest = [
     method,
-    `/${bucket}/${key}`.split('/').map(s => awsUriEncode(s)).join('/'),
+    url.pathname,
     queryString,
     `host:${url.host}\n`,
     'host',

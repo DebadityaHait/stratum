@@ -3,7 +3,7 @@ import { handleBotCommand, resolvePendingDelete, getDefaultBucket, storeCallback
 import { MetadataStore } from '../storage/metadata';
 import { BOT_API_GETFILE_LIMIT } from '../constants';
 import { formatSize, escHtml } from '../utils/format';
-import { computeEtag } from '../utils/crypto';
+import { computeEtag, deriveWebhookSecret } from '../utils/crypto';
 import { downloadFromTelegram } from '../telegram/download';
 
 interface TgUpdate {
@@ -326,8 +326,9 @@ async function handleFileUpload(file: FileInfo, chatId: string, env: Env): Promi
     });
 
     const sizeStr = formatSize(file.fileSize);
+    const renamed = key !== file.fileName ? `\n(原名 ${escHtml(file.fileName)} 已存在，已自动重命名)` : '';
     return {
-      text: `已上传到 <b>${escHtml(bucket.name)}</b>\n文件: ${escHtml(key)}\n大小: ${sizeStr}`,
+      text: `已上传到 <b>${escHtml(bucket.name)}</b>\n文件: ${escHtml(key)}\n大小: ${sizeStr}${renamed}`,
       keyboard: [[
         { text: '分享', callback_data: `share:${storeCallbackData(`${bucket.name}\n${key}`)}` },
         { text: '详情', callback_data: `info:${storeCallbackData(`${bucket.name}\n${key}`)}` },
@@ -422,7 +423,7 @@ export async function registerWebhook(workerUrl: string, env: Env): Promise<bool
     body: JSON.stringify({
       url: webhookUrl,
       allowed_updates: ['message', 'callback_query'],
-      secret_token: env.BEARER_TOKEN,
+      secret_token: await deriveWebhookSecret(env.TG_BOT_TOKEN),
     }),
   });
   const data = await res.json() as { ok: boolean };

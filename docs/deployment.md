@@ -58,7 +58,7 @@ CLOUDFLARE_API_TOKEN=your-cf-api-token
 CF_CUSTOM_DOMAIN=s3.example.com
 ```
 
-All other credentials (S3 keys, BEARER_TOKEN, VPS_SECRET) are **auto-generated** during deployment.
+All other credentials (S3 keys, VPS_SECRET, webhook secret) are **auto-generated** during deployment.
 
 Deploy:
 
@@ -130,7 +130,7 @@ The script will:
 1. Validate configuration
 2. Create D1 database and initialize schema
 3. Create R2 bucket with lifecycle policy
-4. Auto-generate BEARER_TOKEN and VPS_SECRET
+4. Auto-generate VPS_SECRET
 5. Create initial admin S3 credential in D1
 6. Set all secrets in Cloudflare
 7. Deploy the Worker
@@ -213,7 +213,7 @@ Send `/miniapp` to the bot, or access `https://your-worker.workers.dev/miniapp` 
 
 ### Bot not receiving messages
 - Verify webhook: `curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-- Re-register: `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-worker.workers.dev/bot/webhook&secret_token=<BEARER_TOKEN>"`
+- Re-register: redeploy with `deploy.sh` (webhook secret is derived from TG_BOT_TOKEN automatically)
 
 ### D1 errors
 - Check database exists: `npx wrangler d1 list`

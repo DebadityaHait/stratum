@@ -243,7 +243,7 @@ async function objectInfoCmd(args: string[], env: Env): Promise<string> {
   const bucketExists = await store.getBucket(bucket);
   if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
   const obj = await store.getObject(bucket, key);
-  if (!obj) return '文件不存在。';
+  if (!obj) return `文件不存在。使用 <code>/ls ${escHtml(bucket)}</code> 查看文件列表。`;
 
   return `<b>文件信息</b>
 名称: ${escHtml(obj.key)}
@@ -289,7 +289,7 @@ async function shareCmd(args: string[], env: Env, baseUrl?: string): Promise<str
   const bucketExists = await store.getBucket(bucket);
   if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
   const obj = await store.getObject(bucket, key);
-  if (!obj) return '文件不存在。';
+  if (!obj) return `文件不存在。使用 <code>/ls ${escHtml(bucket)}</code> 查看文件列表。`;
 
   const share = await createShareToken({ bucket, key, expiresIn, password, maxDownloads }, env);
   const expiryStr = share.expires_at ? `\n有效期至: ${share.expires_at}` : '\n永久有效';
@@ -445,7 +445,7 @@ async function setBucketCmd(args: string[], chatId: string, env: Env): Promise<s
 
   const name = args[0];
   const exists = buckets.find(b => b.name === name);
-  if (!exists) return `Bucket「${escHtml(name)}」不存在。`;
+  if (!exists) return `Bucket「${escHtml(name)}」不存在。使用 /buckets 查看可用列表。`;
 
   await store.setUserPref(chatId, 'default_bucket', name);
   return `已设置默认上传 Bucket: <b>${escHtml(name)}</b>`;

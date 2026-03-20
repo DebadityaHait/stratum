@@ -4,7 +4,7 @@ import { verifyBearer } from './auth/bearer';
 import { verifySignature, type CredentialResolver } from './auth/sigv4';
 import { generatePresignedUrl } from './auth/presigned';
 import { errorResponse } from './xml/builder';
-import { timingSafeEqual } from './utils/crypto';
+import { timingSafeEqual, deriveWebhookSecret } from './utils/crypto';
 
 // Handlers
 import { handleGetObject } from './handlers/get-object';
@@ -226,14 +226,35 @@ export default {
 
 const ADMIN_CONTEXT: AuthContext = { accessKeyId: '__bearer__', permission: 'admin', buckets: ['*'] };
 
+// Module-level credential cache (persists across requests within the same isolate)
+const credentialCache = new Map<string, { cred: { secret_access_key: string; access_key_id: string; permission: string; buckets: string }; ts: number }>();
+const CRED_CACHE_TTL = 60_000; // 60 seconds
+
 function buildCredentialResolver(env: Env): CredentialResolver {
   return async (accessKeyId: string) => {
-    // 1. Lookup from D1 credentials table
-    const store = new MetadataStore(env);
-    const cred = await store.getCredentialByAccessKey(accessKeyId);
+    // Check cache first to reduce D1 reads
+    const cached = credentialCache.get(accessKeyId);
+    const now = Date.now();
+    let cred: typeof cached extends undefined ? never : NonNullable<typeof cached>['cred'] | null;
+    if (cached && now - cached.ts < CRED_CACHE_TTL) {
+      cred = cached.cred;
+    } else {
+      const store = new MetadataStore(env);
+      const row = await store.getCredentialByAccessKey(accessKeyId);
+      if (row) {
+        cred = { secret_access_key: row.secret_access_key, access_key_id: row.access_key_id, permission: row.permission, buckets: row.buckets };
+        credentialCache.set(accessKeyId, { cred, ts: now });
+      } else {
+        credentialCache.delete(accessKeyId);
+        cred = null;
+      }
+    }
     if (cred) {
-      // Update last_used_at in background (don't block auth)
-      store.touchCredentialLastUsed(accessKeyId).catch(() => {});
+      // Update last_used_at with 10% probability to reduce D1 writes
+      if (Math.random() < 0.1) {
+        const store = new MetadataStore(env);
+        store.touchCredentialLastUsed(accessKeyId).catch(() => {});
+      }
       return {
         secretKey: cred.secret_access_key,
         context: {
@@ -242,10 +263,6 @@ function buildCredentialResolver(env: Env): CredentialResolver {
           buckets: cred.buckets === '*' ? ['*'] : cred.buckets.split(',').map(b => b.trim()),
         },
       };
-    }
-    // 2. Legacy fallback: env vars (for backwards compat during migration)
-    if (env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY && accessKeyId === env.S3_ACCESS_KEY_ID) {
-      return { secretKey: env.S3_SECRET_ACCESS_KEY, context: { ...ADMIN_CONTEXT, accessKeyId } };
     }
     return null;
   };
@@ -679,13 +696,3 @@ function addCorsHeaders(response: Response): Response {
   });
 }
 
-/** Derive a deterministic webhook secret from the bot token (no separate env var needed) */
-async function deriveWebhookSecret(botToken: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(botToken), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode('tg-s3-webhook'));
-  // Hex-encoded, truncated to 64 chars (valid for Telegram secret_token: A-Za-z0-9_-)
-  return Array.from(new Uint8Array(sig), b => b.toString(16).padStart(2, '0')).join('');
-}

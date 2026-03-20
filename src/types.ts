@@ -2,11 +2,6 @@
 export interface Env {
   DB: D1Database;
   TG_BOT_TOKEN: string;
-  // Legacy single-credential fallback (used if no credentials in D1)
-  S3_ACCESS_KEY_ID?: string;
-  S3_SECRET_ACCESS_KEY?: string;
-  // Legacy: optional static bearer token (new deployments derive webhook secret from TG_BOT_TOKEN)
-  BEARER_TOKEN?: string;
   VPS_URL?: string;
   VPS_SECRET?: string;
   DEFAULT_CHAT_ID: string;

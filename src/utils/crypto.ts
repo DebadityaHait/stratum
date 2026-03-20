@@ -49,16 +49,22 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const colonIdx = stored.indexOf(':');
-  if (colonIdx < 0) {
-    // Legacy: plain SHA256 hash (migration compat)
-    const legacy = await sha256Hex(new TextEncoder().encode(password).buffer as ArrayBuffer);
-    return timingSafeEqual(legacy, stored);
-  }
+  if (colonIdx < 0) return false;
   const salt = hexToBuf(stored.slice(0, colonIdx));
   const expected = stored.slice(colonIdx + 1);
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
   return timingSafeEqual(bufToHex(derived), expected);
+}
+
+/** Derive a deterministic webhook secret from the bot token (no separate env var needed) */
+export async function deriveWebhookSecret(botToken: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(botToken), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode('tg-s3-webhook'));
+  return Array.from(new Uint8Array(sig), b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export function timingSafeEqual(a: string, b: string): boolean {

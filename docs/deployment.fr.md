@@ -58,7 +58,7 @@ CLOUDFLARE_API_TOKEN=your-cf-api-token
 CF_CUSTOM_DOMAIN=s3.example.com
 ```
 
-Les autres identifiants (cles S3, BEARER_TOKEN, VPS_SECRET) sont **generes automatiquement** lors du deploiement.
+Les autres identifiants (cles S3, VPS_SECRET, secret webhook) sont **generes automatiquement** lors du deploiement.
 
 Deployez :
 
@@ -130,7 +130,7 @@ Le script va :
 1. Valider la configuration
 2. Creer la base de donnees D1 et initialiser le schema
 3. Creer le bucket R2 avec la politique de cycle de vie
-4. Generer automatiquement BEARER_TOKEN et VPS_SECRET
+4. Generer automatiquement VPS_SECRET
 5. Creer les identifiants S3 admin initiaux dans D1
 6. Definir tous les secrets dans Cloudflare
 7. Deployer le Worker
@@ -213,7 +213,7 @@ Envoyez `/miniapp` au bot, ou accedez directement a `https://your-worker.workers
 
 ### Le bot ne recoit pas les messages
 - Verifiez le webhook : `curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-- Reenregistrez : `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-worker.workers.dev/bot/webhook&secret_token=<BEARER_TOKEN>"`
+- Reenregistrez : redeployez avec `deploy.sh` (le secret webhook est derive automatiquement de TG_BOT_TOKEN)
 
 ### Erreurs D1
 - Verifiez que la base de donnees existe : `npx wrangler d1 list`

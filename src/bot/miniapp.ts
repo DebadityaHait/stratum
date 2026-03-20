@@ -1276,6 +1276,15 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape' && document.getElementById('modalOverlay').classList.contains('show')) {
     closeModal();
   }
+  // Enter key submits modal forms: find the primary action button and click it
+  if (e.key === 'Enter' && document.getElementById('modalOverlay').classList.contains('show')) {
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT')) {
+      e.preventDefault();
+      var btns = document.querySelectorAll('#modalContent .btn:not(.btn-outline):not(.btn-secondary)');
+      if (btns.length) btns[btns.length - 1].click();
+    }
+  }
 });
 
 async function copyText(text) {

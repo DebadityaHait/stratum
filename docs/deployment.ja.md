@@ -58,7 +58,7 @@ CLOUDFLARE_API_TOKEN=your-cf-api-token
 CF_CUSTOM_DOMAIN=s3.example.com
 ```
 
-その他の認証情報（S3 キー、BEARER_TOKEN、VPS_SECRET）はデプロイ時に**自動生成**されます。
+その他の認証情報（S3 キー、VPS_SECRET、Webhook シークレット）はデプロイ時に**自動生成**されます。
 
 デプロイ：
 
@@ -130,7 +130,7 @@ cp .env.example .env
 1. 設定の検証
 2. D1 データベースの作成とスキーマ初期化
 3. R2 バケットの作成とライフサイクルポリシーの設定
-4. BEARER_TOKEN と VPS_SECRET の自動生成
+4. VPS_SECRET の自動生成
 5. D1 に初期 admin S3 認証情報を作成
 6. Cloudflare へのシークレット設定
 7. Worker のデプロイ
@@ -213,7 +213,7 @@ Bot に `/miniapp` を送信するか、`https://your-worker.workers.dev/miniapp
 
 ### Bot がメッセージを受信しない
 - Webhook の確認：`curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-- Webhook の再登録：`curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-worker.workers.dev/bot/webhook&secret_token=<BEARER_TOKEN>"`
+- Webhook の再登録：`deploy.sh` で再デプロイしてください（Webhook シークレットは TG_BOT_TOKEN から自動的に導出されます）
 
 ### D1 エラー
 - データベースの存在確認：`npx wrangler d1 list`

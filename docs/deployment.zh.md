@@ -58,7 +58,7 @@ CLOUDFLARE_API_TOKEN=your-cf-api-token
 CF_CUSTOM_DOMAIN=s3.example.com
 ```
 
-其他凭据（S3 密钥、BEARER_TOKEN、VPS_SECRET）均在部署时**自动生成**。
+其他凭据（S3 密钥、VPS_SECRET、webhook 密钥）均在部署时**自动生成**。
 
 部署：
 
@@ -130,7 +130,7 @@ cp .env.example .env
 1. 验证配置
 2. 创建 D1 数据库并初始化 schema
 3. 创建 R2 存储桶并设置生命周期策略
-4. 自动生成 BEARER_TOKEN 和 VPS_SECRET
+4. 自动生成 VPS_SECRET
 5. 在 D1 中创建初始 admin S3 凭据
 6. 在 Cloudflare 中设置所有 secrets
 7. 部署 Worker
@@ -213,7 +213,7 @@ rclone ls tgs3:default
 
 ### Bot 未收到消息
 - 验证 webhook：`curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-- 重新注册：`curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-worker.workers.dev/bot/webhook&secret_token=<BEARER_TOKEN>"`
+- 重新注册：使用 `deploy.sh` 重新部署（webhook 密钥由 TG_BOT_TOKEN 自动派生）
 
 ### D1 错误
 - 检查数据库是否存在：`npx wrangler d1 list`

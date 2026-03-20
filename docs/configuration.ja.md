@@ -17,20 +17,11 @@
 
 | 変数 | 説明 | 生成元 |
 |------|------|--------|
-| `BEARER_TOKEN` | Bot Webhook 検証と内部認証用の共有シークレット | `deploy.sh`（ランダム 48 文字） |
 | `VPS_SECRET` | Worker とプロセッサ間の認証シークレット | `deploy.sh`（ランダム 48 文字） |
 | S3 認証情報 | S3 API 認証用のアクセスキー + シークレットキー | `deploy.sh`（D1 `credentials` テーブルに作成） |
+| Webhook シークレット | Telegram Webhook 検証用シークレット | `TG_BOT_TOKEN` から HMAC-SHA256 で導出 |
 
 S3 認証情報はデプロイ時に 1 回だけ表示されます。以後は Mini App の **Keys** タブで管理できます（作成、無効化、バケット別権限設定）。
-
-### レガシー S3 認証情報（オプション）
-
-| 変数 | 説明 | 例 |
-|------|------|-----|
-| `S3_ACCESS_KEY_ID` | レガシー単一 S3 アクセスキー（D1 に認証情報がない場合のフォールバック） | `myaccesskey` |
-| `S3_SECRET_ACCESS_KEY` | レガシー単一 S3 シークレットキー | `mysecretkey123` |
-
-新規デプロイでは D1 マルチ認証情報システムを使用します。これらの環境変数は既存デプロイの後方互換性のためにのみ必要です。
 
 ### Cloudflare（Docker デプロイ）
 
@@ -109,7 +100,7 @@ crons = ["0 */6 * * *"]  # 6 時間ごとのメンテナンス
 ## セキュリティに関する注意事項
 
 - **S3 認証情報**は D1 に保存され、AWS SigV4 署名検証に使用されます。高強度のランダム値が自動生成されます。Mini App の Keys タブで管理してください。
-- **BEARER_TOKEN** は Telegram Webhook 呼び出しと Mini App initData の検証に使用されます。未設定時は自動生成されます。
+- **Webhook シークレット**は `TG_BOT_TOKEN` から HMAC-SHA256 で決定論的に導出されます。別の環境変数は不要です。
 - **VPS_SECRET** は Worker からプロセッサへの通信を認証します。未設定時は自動生成されます。
 - **CLOUDFLARE_API_TOKEN** は CF アカウントへの書き込み権限を持ちます。git にコミットしないでください。
 - `.env` ファイルはデフォルトで `.gitignore` と `.dockerignore` に含まれています。

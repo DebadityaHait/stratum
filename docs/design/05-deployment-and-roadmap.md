@@ -26,7 +26,7 @@
   - 三层缓存: CDN + R2 + TG
   - 图床直链 + 图片变体 (?w=, ?fmt= 需 VPS)
   - 文件分享 (时效/口令/下载限制)
-  - Bearer Token + SigV4 + Presigned URL 认证
+  - SigV4 + Presigned URL + Telegram initData 认证
   - Telegram Bot 管理 (13 命令含 /start + 文件上传 + 删除确认)
   - Mini App 文件管理器
 ```
@@ -172,7 +172,7 @@ CMD ["node", "server.js"]
 | 措施 | 说明 |
 |------|------|
 | IP 白名单 | 只接受 CF Worker IP 段的请求 |
-| Bearer Token | Worker 请求携带 `Authorization: Bearer ${VPS_SECRET}`，VPS 验证 |
+| 共享密钥 | Worker 请求携带 `Authorization: Bearer ${VPS_SECRET}`，VPS 验证 |
 | HTTPS | Caddy 自动 Let's Encrypt |
 | 防火墙 | 只开放 443，关闭 SSH 密码登录 |
 | Docker 网络隔离 | 服务间通过 Docker 内部网络通信 |
@@ -190,8 +190,8 @@ compatibility_date = "2026-03-15"
 S3_REGION = "us-east-1"
 
 # Secrets (通过 wrangler secret put 设置，不写入 toml):
-# TG_BOT_TOKEN, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, BEARER_TOKEN,
-# DEFAULT_CHAT_ID, VPS_URL (可选), VPS_SECRET (可选)
+# TG_BOT_TOKEN, DEFAULT_CHAT_ID, VPS_URL (可选), VPS_SECRET (可选)
+# S3 凭据存储在 D1 credentials 表中，Webhook 密钥由 TG_BOT_TOKEN 派生
 
 [[d1_databases]]
 binding = "DB"
@@ -301,7 +301,7 @@ Worker 同时处理 S3 API 和 TG Bot Webhook：
 // 路由区分 (secret_token 验证 webhook 合法性，时序安全比较)
 if (path === '/bot/webhook' && request.method === 'POST') {
   const secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
-  if (!timingSafeEqual(secret, env.BEARER_TOKEN)) return new Response('Unauthorized', { status: 401 });
+  if (!timingSafeEqual(secret, await deriveWebhookSecret(env.TG_BOT_TOKEN))) return new Response('Unauthorized', { status: 401 });
   return handleWebhook(request, env);
 }
 // Mini App
@@ -340,7 +340,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 | POST | `/api/miniapp/rename` | 重命名/移动文件 (body: `{bucket, oldKey, newKey}`) |
 | POST | `/api/miniapp/presign` | 生成预签名 URL (body: `{bucket, key, method?, expiresIn?}`) |
 
-所有端点需认证（Bearer Token 或 Telegram WebApp initData）。
+所有端点需认证（Telegram WebApp initData）。
 
 ### 核心功能
 
@@ -366,7 +366,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 ```
 交付物:
   - CF Worker 项目骨架
-  - Bearer Token 认证
+  - Telegram initData 认证
   - PutObject / GetObject / HeadObject / DeleteObject
   - ListObjectsV2 (prefix + delimiter)
   - HeadBucket / ListBuckets
@@ -555,9 +555,6 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 | 变量 | 用途 | 存储方式 |
 |------|------|---------|
 | TG_BOT_TOKEN | Telegram Bot Token | Secret |
-| S3_ACCESS_KEY_ID | S3 认证 Access Key | Secret |
-| S3_SECRET_ACCESS_KEY | S3 认证 Secret Key | Secret |
-| BEARER_TOKEN | 简化认证 Token / Webhook Secret | Secret |
 | S3_REGION | S3 区域标识 (默认 "us-east-1") | Var (wrangler.toml) |
 | VPS_URL | VPS 服务地址 (可选) | Secret |
 | VPS_SECRET | Worker 调用 VPS 的认证密钥 (可选) | Secret |
