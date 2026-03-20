@@ -3,7 +3,7 @@
 tg-s3 implements an S3-compatible API on top of Telegram as the storage backend.
 This document records the compatibility status and deliberate design decisions.
 
-## Supported Operations (22)
+## Supported Operations (21)
 
 | Operation | Status | Notes |
 |-----------|--------|-------|
