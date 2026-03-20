@@ -673,7 +673,7 @@ async function batchDelete() {
     <p style="margin:8px 0">\${esc(t('batch_delete_msg', keys.length))}</p>
     <div style="max-height:150px;overflow-y:auto;margin:8px 0;padding:8px;background:var(--bg);border-radius:8px">\${fileListHtml}\${moreHtml}\${sizeHtml}</div>
     <p style="margin:8px 0;font-size:13px">\${esc(t('batch_delete_confirm_hint', t('confirm_word')))}</p>
-    <input id="deleteConfirmInput" type="text" placeholder="\${esc(t('confirm_word_placeholder'))}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box" />
+    <input id="deleteConfirmInput" type="text" placeholder="\${esc(t('confirm_word_placeholder'))}" style="width:100%;padding:8px;border:1px solid var(--secondary-bg);border-radius:6px;font-size:14px;box-sizing:border-box" />
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-sm btn-outline" onclick="closeModal()">\${esc(t('cancel'))}</button>
       <button class="btn btn-sm btn-danger" id="batchDeleteConfirmBtn" onclick="confirmBatchDelete()" disabled>\${esc(t('delete'))}</button>
@@ -820,7 +820,7 @@ async function uploadFiles(files) {
     <div id="uploadStatus" style="margin:12px 0">\${esc(t('preparing_upload', total))}</div>
     <div class="progress-bar"><div class="progress-bar-fill" id="uploadProgress" style="width:0%"></div></div>
     <div id="uploadDetail" style="font-size:12px;color:var(--hint)"></div>
-    <div style="text-align:center;margin-top:12px"><button class="btn btn-sm btn-outline" onclick="uploadCancelled=true">\${esc(t('cancel'))}</button></div>
+    <div style="text-align:center;margin-top:12px"><button class="btn btn-sm btn-outline" id="uploadCancelBtn" onclick="uploadCancelled=true;this.disabled=true;this.textContent=t('cancelling')">\${esc(t('cancel'))}</button></div>
   \`);
 
   for (let i = 0; i < files.length; i++) {

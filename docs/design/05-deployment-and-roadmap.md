@@ -65,8 +65,7 @@ VPS 上运行:
   - CF Workers 付费计划 ($5/月)
 
 额外能力:
-  - 30s CPU 时间 (SigV4 无压力)
-  - 完整 AWS SigV4 认证
+  - 30s CPU 时间 (复杂请求更宽裕)
   - 可选: Workers WASM 图片处理 (wasm-vips, 轻量任务不走 VPS)
   - 无限请求数
 ```
