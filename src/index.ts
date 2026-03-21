@@ -724,6 +724,24 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
     return Response.json({ ok });
   }
 
+  // POST /api/miniapp/credential/rotate?accessKeyId=... - rotate secret key
+  if (path === '/api/miniapp/credential/rotate' && method === 'POST') {
+    const accessKeyId = url.searchParams.get('accessKeyId');
+    if (!accessKeyId) return Response.json({ error: 'accessKeyId required' }, { status: 400 });
+    const existing = await store.getCredentialByAccessKeyUnsafe(accessKeyId);
+    if (!existing) return Response.json({ error: 'Credential not found' }, { status: 404 });
+    const skBuf = new Uint8Array(30);
+    crypto.getRandomValues(skBuf);
+    const toBase62 = (buf: Uint8Array) => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      return Array.from(buf).map(b => chars[b % 62]).join('');
+    };
+    const newSecret = toBase62(skBuf);
+    await store.updateCredentialSecret(accessKeyId, newSecret);
+    credentialCache.delete(accessKeyId);
+    return Response.json({ secret_access_key: newSecret });
+  }
+
   // DELETE /api/miniapp/credential?accessKeyId=... - delete credential
   if (path === '/api/miniapp/credential' && method === 'DELETE') {
     const accessKeyId = url.searchParams.get('accessKeyId');

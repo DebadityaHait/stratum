@@ -1481,7 +1481,9 @@ async function loadKeys() {
           '<br>' + esc(t('key_last_used')) + ': ' + esc(lastUsed) +
         '</div>' +
         '<div class="cred-actions">' +
+          '<button class="btn btn-sm btn-outline" onclick="showEditKey(\\'' + escJs(c.access_key_id) + '\\', \\'' + escJs(c.name) + '\\', \\'' + escJs(c.permission) + '\\', \\'' + escJs(c.buckets) + '\\')">' + esc(t('edit')) + '</button>' +
           '<button class="btn btn-sm btn-outline" onclick="toggleKeyStatus(\\'' + escJs(c.access_key_id) + '\\', \\'' + escJs(c.status === 'active' ? 'inactive' : 'active') + '\\')">' + esc(toggleLabel) + '</button>' +
+          '<button class="btn btn-sm btn-outline" onclick="confirmRotateKey(\\'' + escJs(c.access_key_id) + '\\', \\'' + escJs(c.name) + '\\')">' + esc(t('key_rotate_btn')) + '</button>' +
           '<button class="btn btn-sm btn-danger" onclick="confirmDeleteKey(\\'' + escJs(c.access_key_id) + '\\', \\'' + escJs(c.name) + '\\')">' + esc(t('delete')) + '</button>' +
         '</div>' +
       '</div>';
@@ -1549,6 +1551,83 @@ async function doCreateKey() {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = t('create'); }
     toast(t('create_failed', e.message));
+  }
+}
+
+function showEditKey(accessKeyId, name, permission, buckets) {
+  showModal(
+    '<span class="modal-close" role="button" aria-label="Close" onclick="closeModal()">&times;</span>' +
+    '<h3>' + esc(t('key_edit_title')) + '</h3>' +
+    '<div class="form-group">' +
+      '<label>' + esc(t('key_name_label')) + '</label>' +
+      '<input type="text" id="editKeyName" value="' + esc(name) + '">' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>' + esc(t('key_permission_label')) + '</label>' +
+      '<select id="editKeyPermission">' +
+        '<option value="admin"' + (permission === 'admin' ? ' selected' : '') + '>' + esc(t('key_perm_admin')) + '</option>' +
+        '<option value="readwrite"' + (permission === 'readwrite' ? ' selected' : '') + '>' + esc(t('key_perm_readwrite')) + '</option>' +
+        '<option value="readonly"' + (permission === 'readonly' ? ' selected' : '') + '>' + esc(t('key_perm_readonly')) + '</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>' + esc(t('key_buckets_input_label')) + '</label>' +
+      '<input type="text" id="editKeyBuckets" value="' + esc(buckets) + '">' +
+      '<div style="font-size:11px;color:var(--hint);margin-top:4px">' + esc(t('key_buckets_hint')) + '</div>' +
+    '</div>' +
+    '<button class="btn" style="width:100%;margin-top:8px" id="saveKeyBtn" onclick="doSaveKey(\\'' + escJs(accessKeyId) + '\\')">' + esc(t('save')) + '</button>'
+  );
+}
+
+async function doSaveKey(accessKeyId) {
+  var name = (document.getElementById('editKeyName').value || '').trim();
+  var permission = document.getElementById('editKeyPermission').value;
+  var buckets = (document.getElementById('editKeyBuckets').value || '*').trim();
+  var btn = document.getElementById('saveKeyBtn');
+  if (btn) { btn.disabled = true; btn.textContent = t('saving'); }
+  try {
+    await apiFetch('/api/miniapp/credential?accessKeyId=' + encodeURIComponent(accessKeyId), {
+      method: 'PATCH',
+      body: JSON.stringify({ name: name, permission: permission, buckets: buckets }),
+    });
+    closeModal();
+    toast(t('key_status_updated'));
+    loadKeys();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = t('save'); }
+    toast(t('key_update_failed', e.message));
+  }
+}
+
+function confirmRotateKey(accessKeyId, name) {
+  showModal(
+    '<span class="modal-close" role="button" aria-label="Close" onclick="closeModal()">&times;</span>' +
+    '<h3>' + esc(t('key_rotate_title')) + '</h3>' +
+    '<p style="margin:12px 0">' + esc(t('key_rotate_confirm', name)) + '</p>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+      '<button class="btn btn-sm btn-outline" onclick="closeModal()">' + esc(t('cancel')) + '</button>' +
+      '<button class="btn btn-sm" onclick="doRotateKey(\\'' + escJs(accessKeyId) + '\\')">' + esc(t('key_rotate_btn')) + '</button>' +
+    '</div>'
+  );
+}
+
+async function doRotateKey(accessKeyId) {
+  try {
+    var result = await apiFetch('/api/miniapp/credential/rotate?accessKeyId=' + encodeURIComponent(accessKeyId), { method: 'POST' });
+    showModal(
+      '<span class="modal-close" role="button" aria-label="Close" onclick="closeModal()">&times;</span>' +
+      '<h3>' + esc(t('key_new_secret')) + '</h3>' +
+      '<div class="form-group">' +
+        '<div class="secret-reveal">' + esc(result.secret_access_key) + '</div>' +
+      '</div>' +
+      '<div class="secret-warning">' + esc(t('key_rotated_warning')) + '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn" style="flex:1" onclick="copyText(\\'' + escJs(result.secret_access_key) + '\\')">' + esc(t('key_copy_both')) + '</button>' +
+      '</div>'
+    );
+    loadKeys();
+  } catch (e) {
+    toast(t('key_update_failed', e.message));
   }
 }
 

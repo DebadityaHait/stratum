@@ -40,7 +40,7 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
   const contentType = s3.headers.get('content-type') || 'application/octet-stream';
   const userMeta = extractUserMetadata(s3.headers);
   const sysMeta = extractSystemMetadata(s3.headers);
-  const etag = computeEtag(body);
+  const etag = await computeEtag(body);
 
   // S3 conditional write (2024-08): If-None-Match: * prevents overwriting existing objects
   const ifNoneMatch = s3.headers.get('if-none-match');

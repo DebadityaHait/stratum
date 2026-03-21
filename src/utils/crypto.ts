@@ -1,5 +1,3 @@
-import { md5Hex } from './md5';
-
 export async function sha256(data: ArrayBuffer): Promise<ArrayBuffer> {
   return crypto.subtle.digest('SHA-256', data);
 }
@@ -17,20 +15,22 @@ export async function hmacSha256Hex(key: ArrayBuffer, data: string): Promise<str
   return bufToHex(await hmacSha256(key, data));
 }
 
-// Use MD5 for ETags (S3 standard, maximizes client compatibility)
-export function computeEtag(data: ArrayBuffer): string {
-  return `"${md5Hex(data)}"`;
+// Use Web Crypto MD5 for ETags (S3 standard, maximizes client compatibility)
+export async function computeEtag(data: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('MD5', data);
+  return `"${bufToHex(digest)}"`;
 }
 
 // Multipart ETag format: "<md5_of_concatenated_part_md5s>-<part_count>"
-export function computeMultipartEtag(partEtags: string[]): string {
+export async function computeMultipartEtag(partEtags: string[]): Promise<string> {
   const stripped = partEtags.map(e => e.replace(/"/g, ''));
   const concat = stripped.map(h => hexToBuf(h));
   const total = concat.reduce((s, b) => s + b.byteLength, 0);
   const buf = new Uint8Array(total);
   let off = 0;
   for (const b of concat) { buf.set(new Uint8Array(b), off); off += b.byteLength; }
-  return `"${md5Hex(buf.buffer as ArrayBuffer)}-${partEtags.length}"`;
+  const digest = await crypto.subtle.digest('MD5', buf.buffer as ArrayBuffer);
+  return `"${bufToHex(digest)}-${partEtags.length}"`;
 }
 
 export function generateToken(bytes = 32): string {

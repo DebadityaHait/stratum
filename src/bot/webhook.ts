@@ -315,7 +315,7 @@ async function handleFileUpload(file: FileInfo, chatId: string, lang: Lang, env:
     try {
       const fileRes = await downloadFromTelegram(file.fileId, env);
       const fileData = await fileRes.arrayBuffer();
-      etag = computeEtag(fileData);
+      etag = await computeEtag(fileData);
     } catch {
       etag = `"${file.fileUniqueId}"`;
     }

@@ -76,7 +76,7 @@ export async function handleUploadPart(s3: S3Request, env: Env, ctx: ExecutionCo
     }
   }
 
-  const etag = computeEtag(bodyBuf);
+  const etag = await computeEtag(bodyBuf);
 
   let result;
   try {
@@ -197,7 +197,7 @@ export async function handleCompleteMultipartUpload(s3: S3Request, env: Env, ctx
     }
 
     // S3 multipart ETag format: "md5_of_concatenated_part_md5s-part_count"
-    etag = computeMultipartEtag(sortedParts.map(p => p.etag));
+    etag = await computeMultipartEtag(sortedParts.map(p => p.etag));
 
     try {
       uploadResult = await uploadToTelegram(
@@ -219,7 +219,7 @@ export async function handleCompleteMultipartUpload(s3: S3Request, env: Env, ctx
       const result = await consolidateViaVps(sortedParts, bucket.tg_chat_id, upload.key, upload.content_type || 'application/octet-stream', env, bucket.tg_topic_id);
       uploadResult = result;
       // S3 multipart ETag: computed from part ETags, not content hash
-      etag = computeMultipartEtag(sortedParts.map(p => p.etag));
+      etag = await computeMultipartEtag(sortedParts.map(p => p.etag));
     } catch (e) {
       ctx.waitUntil(cleanupParts(sortedParts, env));
       await store.deleteMultipartUpload(uploadId);
@@ -474,7 +474,7 @@ export async function handleUploadPartCopy(s3: S3Request, env: Env, ctx: Executi
   }
 
   const total = data.byteLength;
-  const etag = computeEtag(data);
+  const etag = await computeEtag(data);
 
   // Upload part data to TG
   let result;

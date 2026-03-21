@@ -454,7 +454,7 @@ async function handleImageVariant(
     const cacheVariant = (async () => {
       try {
         const result = await uploadToTelegram(variantData, bucket.tg_chat_id, variantKey.split('/').pop()!, variantCt, env, bucket.tg_topic_id);
-        const etag = computeEtag(variantData);
+        const etag = await computeEtag(variantData);
         await store.putObject({
           bucket: s3.bucket, key: variantKey, size: variantData.byteLength, etag,
           contentType: variantCt, tgChatId: result.tgChatId, tgMessageId: result.tgMessageId,

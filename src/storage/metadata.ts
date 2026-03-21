@@ -691,6 +691,12 @@ export class MetadataStore {
     ).bind(accessKeyId).first<CredentialRow>();
   }
 
+  async getCredentialByAccessKeyUnsafe(accessKeyId: string): Promise<CredentialRow | null> {
+    return await this.db.prepare(
+      'SELECT * FROM credentials WHERE access_key_id = ?'
+    ).bind(accessKeyId).first<CredentialRow>();
+  }
+
   async listCredentials(): Promise<CredentialRow[]> {
     const r = await this.db.prepare(
       'SELECT * FROM credentials ORDER BY created_at DESC'
@@ -730,6 +736,13 @@ export class MetadataStore {
     const r = await this.db.prepare(
       `UPDATE credentials SET ${sets.join(', ')} WHERE access_key_id = ?`
     ).bind(...vals).run();
+    return (r.meta?.changes ?? 0) > 0;
+  }
+
+  async updateCredentialSecret(accessKeyId: string, newSecret: string): Promise<boolean> {
+    const r = await this.db.prepare(
+      'UPDATE credentials SET secret_access_key = ? WHERE access_key_id = ?'
+    ).bind(newSecret, accessKeyId).run();
     return (r.meta?.changes ?? 0) > 0;
   }
 
