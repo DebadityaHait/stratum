@@ -570,11 +570,31 @@ async function loadFiles(append) {
       }
     }
 
+    // Build Live Photo lookup: base name (without extension) -> MOV key exists
+    var livePhotoMov = new Set();
+    for (var li = 0; li < items.length; li++) {
+      var ct = items[li].content_type || '';
+      if (ct.startsWith('video/') || ct === 'application/octet-stream') {
+        var k = items[li].key;
+        var dotIdx = k.lastIndexOf('.');
+        if (dotIdx > 0) {
+          var ext = k.slice(dotIdx).toLowerCase();
+          if (ext === '.mov' || ext === '.mp4') livePhotoMov.add(k.slice(0, dotIdx).toLowerCase());
+        }
+      }
+    }
+
     for (const obj of items) {
       const name = searchQuery ? obj.key : obj.key.slice(currentPrefix.length);
       const isImg = obj.content_type && obj.content_type.startsWith('image/') && !obj.content_type.includes('svg');
+      // Detect Live Photo: image has matching MOV with same base name
+      var isLive = false;
+      if (isImg) {
+        var baseDot = obj.key.lastIndexOf('.');
+        if (baseDot > 0) isLive = livePhotoMov.has(obj.key.slice(0, baseDot).toLowerCase());
+      }
       const iconHtml = isImg
-        ? '<img loading="lazy" width="40" height="40" class="thumb-lazy" style="object-fit:cover;border-radius:4px;background:var(--secondary-bg)" data-bucket="' + esc(currentBucket) + '" data-key="' + esc(obj.key) + '" onerror="this.outerHTML=\\'<span style=font-size:24px>\u{1F5BC}\u{FE0F}</span>\\'"/>'
+        ? '<div style="position:relative;width:40px;height:40px"><img loading="lazy" width="40" height="40" class="thumb-lazy" style="object-fit:cover;border-radius:4px;background:var(--secondary-bg)" data-bucket="' + esc(currentBucket) + '" data-key="' + esc(obj.key) + '" onerror="this.outerHTML=\\'<span style=font-size:24px>\u{1F5BC}\u{FE0F}</span>\\'"/>' + (isLive ? '<span style="position:absolute;bottom:1px;left:1px;background:rgba(0,0,0,0.6);color:#fff;font-size:8px;padding:1px 3px;border-radius:3px;font-weight:700;letter-spacing:0.5px">LIVE</span>' : '') + '</div>'
         : fileIcon(obj.content_type);
       const sel = selectedFiles.has(obj.key) ? ' selected' : '';
       html += \`
@@ -582,7 +602,7 @@ async function loadFiles(append) {
           <div class="file-check">\${selectedFiles.has(obj.key) ? '\u2713' : ''}</div>
           <div class="file-icon">\${iconHtml}</div>
           <div class="file-info">
-            <div class="file-name" title="\${esc(name)}">\${esc(name)}</div>
+            <div class="file-name" title="\${esc(name)}">\${esc(name)}\${isLive ? ' <span style="font-size:10px;color:var(--hint);font-weight:500">Live</span>' : ''}</div>
             <div class="file-meta">\${formatSize(obj.size)} / \${new Date(obj.last_modified).toLocaleString(currentLang === 'zh' ? 'zh-CN' : currentLang === 'ja' ? 'ja-JP' : currentLang === 'fr' ? 'fr-FR' : 'en-US',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
           </div>
         </div>\`;
@@ -1083,8 +1103,29 @@ async function showFileDetail(bucket, key) {
     if (hasPreview) {
       mediaUrl = downloadUrl(bucket, key);
     }
+    // Detect Live Photo: check if matching MOV exists for this image
+    var liveMovKey = '';
+    if (isImg) {
+      var baseDot = key.lastIndexOf('.');
+      if (baseDot > 0) {
+        var baseName = key.slice(0, baseDot);
+        // Check common Live Photo video extensions
+        for (var ext of ['.mov', '.MOV', '.mp4', '.MP4']) {
+          var candidate = baseName + ext;
+          if (loadedObjects.has(candidate)) { liveMovKey = candidate; break; }
+        }
+      }
+    }
     let previewHtml = '';
-    if (isImg && mediaUrl) {
+    if (isImg && mediaUrl && liveMovKey) {
+      // Live Photo: show image with LIVE badge; tap plays video overlay
+      var movUrl = downloadUrl(bucket, liveMovKey);
+      previewHtml = '<div style="text-align:center;margin:8px 0;position:relative;cursor:pointer" id="livePhotoContainer" onclick="playLivePhoto()">' +
+        '<img id="livePhotoImg" src="' + esc(mediaUrl) + '" style="max-width:100%;max-height:200px;border-radius:8px" onerror="this.style.display=\\'none\\'">' +
+        '<span style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700">LIVE</span>' +
+        '<video id="livePhotoVideo" src="' + esc(movUrl) + '" playsinline muted style="display:none;max-width:100%;max-height:200px;border-radius:8px;position:absolute;top:0;left:50%;transform:translateX(-50%)" onended="stopLivePhoto()"></video>' +
+        '</div>';
+    } else if (isImg && mediaUrl) {
       previewHtml = '<div style="text-align:center;margin:8px 0"><img src="' + esc(mediaUrl) + '" style="max-width:100%;max-height:200px;border-radius:8px" onerror="this.style.display=\\'none\\'"></div>';
     } else if (isVideo && mediaUrl) {
       previewHtml = '<div style="text-align:center;margin:8px 0"><video controls preload="metadata" style="max-width:100%;max-height:200px;border-radius:8px" src="' + esc(mediaUrl) + '"></video></div>';
@@ -1181,6 +1222,25 @@ async function showFileDetail(bucket, key) {
 function downloadFile(bucket, key) {
   window.open(downloadUrl(bucket, key), '_blank');
   closeModal();
+}
+
+function playLivePhoto() {
+  var img = document.getElementById('livePhotoImg');
+  var vid = document.getElementById('livePhotoVideo');
+  if (!vid || !img) return;
+  vid.style.display = 'block';
+  img.style.opacity = '0';
+  vid.currentTime = 0;
+  vid.muted = false;
+  vid.play().catch(function() { vid.muted = true; vid.play(); });
+}
+
+function stopLivePhoto() {
+  var img = document.getElementById('livePhotoImg');
+  var vid = document.getElementById('livePhotoVideo');
+  if (!vid || !img) return;
+  vid.style.display = 'none';
+  img.style.opacity = '1';
 }
 
 async function copyPresignUrl(bucket, key) {

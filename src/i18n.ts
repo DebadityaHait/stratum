@@ -1188,6 +1188,7 @@ export const botStrings: Record<Lang, Record<string, string>> = {
     cmd_setbucket: 'Set default upload Bucket \u2014 /setbucket [name]',
     cmd_miniapp: 'Open file manager',
     cmd_help: 'Help',
+    photo_quality_hint: '\u{1F4A1} <i>Tip: Telegram compresses photos. To preserve original quality (HEIC, RAW), send as <b>File</b> instead (long press the attachment button and choose "File").</i>',
   },
   zh: {
     unsupported_type: '\u4e0d\u652f\u6301\u6b64\u6d88\u606f\u7c7b\u578b\uff0c\u8bf7\u53d1\u9001\u6587\u4ef6\u3001\u56fe\u7247\u3001\u89c6\u9891\u3001\u97f3\u9891\u6216\u8bed\u97f3\u3002\n\u8f93\u5165 /help \u67e5\u770b\u5e2e\u52a9\u3002',
@@ -1269,6 +1270,7 @@ export const botStrings: Record<Lang, Record<string, string>> = {
     cmd_setbucket: '\u8bbe\u7f6e\u9ed8\u8ba4\u4e0a\u4f20 Bucket \u2014 /setbucket [\u540d\u79f0]',
     cmd_miniapp: '\u6253\u5f00\u7f51\u76d8\u7ba1\u7406\u9762\u677f',
     cmd_help: '\u5e2e\u52a9\u4fe1\u606f',
+    photo_quality_hint: '\u{1F4A1} <i>\u63d0\u793a\uff1aTelegram \u4f1a\u538b\u7f29\u56fe\u7247\u3002\u5982\u9700\u4fdd\u7559\u539f\u59cb\u753b\u8d28\uff08HEIC\u3001RAW\uff09\uff0c\u8bf7\u4ee5<b>\u6587\u4ef6</b>\u65b9\u5f0f\u53d1\u9001\uff08\u957f\u6309\u9644\u4ef6\u6309\u94ae\u9009\u201c\u6587\u4ef6\u201d\uff09\u3002</i>',
   },
   ja: {
     unsupported_type: '\u3053\u306e\u30e1\u30c3\u30bb\u30fc\u30b8\u30bf\u30a4\u30d7\u306f\u30b5\u30dd\u30fc\u30c8\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002\u30d5\u30a1\u30a4\u30eb\u3001\u753b\u50cf\u3001\u52d5\u753b\u3001\u97f3\u58f0\u3092\u9001\u4fe1\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n/help \u3067\u30d8\u30eb\u30d7\u3092\u8868\u793a\u3002',
@@ -1350,6 +1352,7 @@ export const botStrings: Record<Lang, Record<string, string>> = {
     cmd_setbucket: '\u30c7\u30d5\u30a9\u30eb\u30c8\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u5148\u8a2d\u5b9a \u2014 /setbucket [\u540d\u524d]',
     cmd_miniapp: '\u30d5\u30a1\u30a4\u30eb\u30de\u30cd\u30fc\u30b8\u30e3\u30fc\u3092\u958b\u304f',
     cmd_help: '\u30d8\u30eb\u30d7',
+    photo_quality_hint: '\u{1F4A1} <i>\u30d2\u30f3\u30c8: Telegram\u306f\u753b\u50cf\u3092\u5727\u7e2e\u3057\u307e\u3059\u3002\u30aa\u30ea\u30b8\u30ca\u30eb\u54c1\u8cea\uff08HEIC\u3001RAW\uff09\u3092\u4fdd\u6301\u3059\u308b\u306b\u306f\u3001<b>\u30d5\u30a1\u30a4\u30eb</b>\u3068\u3057\u3066\u9001\u4fe1\u3057\u3066\u304f\u3060\u3055\u3044\u3002</i>',
   },
   fr: {
     unsupported_type: "Ce type de message n'est pas pris en charge. Veuillez envoyer des fichiers, photos, vid\u00e9os, audio ou messages vocaux.\nTapez /help pour l'aide.",
@@ -1431,5 +1434,6 @@ export const botStrings: Record<Lang, Record<string, string>> = {
     cmd_setbucket: 'Bucket par d\u00e9faut \u2014 /setbucket [nom]',
     cmd_miniapp: 'Ouvrir le gestionnaire de fichiers',
     cmd_help: 'Aide',
+    photo_quality_hint: '\u{1F4A1} <i>Astuce : Telegram compresse les photos. Pour conserver la qualit\u00e9 originale (HEIC, RAW), envoyez en tant que <b>Fichier</b> (appui long sur le bouton pi\u00e8ce jointe, puis "Fichier").</i>',
   },
 };

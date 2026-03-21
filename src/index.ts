@@ -1,4 +1,4 @@
-import type { Env, S3Request, S3Operation, AuthFailure, AuthContext } from './types';
+import type { Env, S3Request, S3Operation, AuthFailure, AuthContext, CredentialRow } from './types';
 import { parseS3Path } from './utils/path';
 import { verifyBearer } from './auth/bearer';
 import { verifySignature, type CredentialResolver } from './auth/sigv4';
@@ -67,6 +67,34 @@ export default {
       const authResult = await authenticate(request, url, env);
       if (isAuthFailure(authResult)) return addCorsHeaders(errorResponse(authResult.status, authResult.code, authResult.message));
       return addCorsHeaders(await handleShareApi(request, url, env));
+    }
+
+    // Simple Upload API: Bearer token auth using S3 credentials (for iOS Shortcuts, scripts, etc.)
+    // PUT /api/upload?bucket=...&key=...  Authorization: Bearer <access_key_id>:<secret_access_key>
+    if (path === '/api/upload' && (request.method === 'PUT' || request.method === 'POST')) {
+      const authResult = await authenticateSimpleToken(request, env);
+      if ('error' in authResult) {
+        return addCorsHeaders(Response.json({ error: authResult.error }, { status: authResult.status }));
+      }
+      const bucket = url.searchParams.get('bucket');
+      const key = url.searchParams.get('key');
+      if (!bucket || !key) return addCorsHeaders(Response.json({ error: 'bucket and key required' }, { status: 400 }));
+      // Check credential has access to this bucket
+      const cred = authResult.credential;
+      if (cred.buckets !== '*' && !cred.buckets.split(',').map((b: string) => b.trim()).includes(bucket)) {
+        return addCorsHeaders(Response.json({ error: 'No access to this bucket' }, { status: 403 }));
+      }
+      if (cred.permission === 'readonly') {
+        return addCorsHeaders(Response.json({ error: 'Read-only credential' }, { status: 403 }));
+      }
+      const s3: S3Request = {
+        method: 'PUT', bucket, key,
+        query: new URLSearchParams(),
+        headers: request.headers,
+        body: request.body,
+        url,
+      };
+      return addCorsHeaders(await handlePutObject(s3, env, ctx));
     }
 
     // Mini App API (requires auth)
@@ -347,6 +375,24 @@ function buildCredentialResolver(env: Env): CredentialResolver {
     }
     return null;
   };
+}
+
+// Simple token auth for /api/upload: Bearer <access_key_id>:<secret_access_key>
+async function authenticateSimpleToken(request: Request, env: Env): Promise<{ credential: CredentialRow } | { error: string; status: number }> {
+  const auth = request.headers.get('Authorization');
+  if (!auth) return { error: 'Authorization header required', status: 401 };
+  const parts = auth.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') return { error: 'Expected: Bearer <access_key_id>:<secret_access_key>', status: 401 };
+  const colonIdx = parts[1].indexOf(':');
+  if (colonIdx < 0) return { error: 'Expected: Bearer <access_key_id>:<secret_access_key>', status: 401 };
+  const accessKeyId = parts[1].slice(0, colonIdx);
+  const secretKey = parts[1].slice(colonIdx + 1);
+  const store = new MetadataStore(env);
+  const cred = await store.getCredentialByAccessKey(accessKeyId);
+  if (!cred) return { error: 'Invalid credentials', status: 401 };
+  if (!timingSafeEqual(secretKey, cred.secret_access_key)) return { error: 'Invalid credentials', status: 401 };
+  await store.touchCredentialLastUsed(accessKeyId);
+  return { credential: cred };
 }
 
 async function authenticate(request: Request, url: URL, env: Env): Promise<AuthFailure | AuthContext> {

@@ -69,6 +69,10 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
   const file = extractFileInfo(msg);
   if (file) {
     const result = await handleFileUpload(file, chatId, lang, env);
+    // Hint: when user sends compressed photo, suggest sending as document for original quality
+    if (msg.photo && !msg.document) {
+      result.text += '\n\n' + botT(lang, 'photo_quality_hint');
+    }
     if (result.keyboard) {
       await sendMessageWithKeyboard(chatId, result.text, result.keyboard, env);
     } else {

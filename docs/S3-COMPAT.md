@@ -38,7 +38,7 @@ This document records the compatibility status and deliberate design decisions.
 ## Server-Side Encryption
 
 - **SSE-C** (Customer-Provided Keys): Full support. AES-256-GCM encryption in CF Worker. Headers: `x-amz-server-side-encryption-customer-algorithm`, `x-amz-server-side-encryption-customer-key`, `x-amz-server-side-encryption-customer-key-MD5`. Supported on PutObject, GetObject, HeadObject, CopyObject, and multipart uploads.
-- **SSE-S3** (Server-Managed Keys): Not implemented. Use SSE-C for encryption.
+- **SSE-S3** (Server-Managed Keys): Full support. AES-256-GCM encryption with server-managed master key (`SSE_MASTER_KEY` secret). Headers: `x-amz-server-side-encryption: AES256`. Per-bucket default encryption configurable via miniapp.
 - **SSE-KMS**: Not implemented (no KMS integration).
 
 **SSE-C notes:**
@@ -52,7 +52,8 @@ This document records the compatibility status and deliberate design decisions.
 - **SigV4 header auth**: Full, with specific error codes (SignatureDoesNotMatch, InvalidAccessKeyId, RequestTimeTooSkewed, AuthorizationHeaderMalformed)
 - **Presigned URLs**: Full, 7-day max expiry, SigV4 query string auth
 - **AWS chunked streaming** (`STREAMING-AWS4-HMAC-SHA256-PAYLOAD`): Body parsing supported; per-chunk signature verification skipped (HTTPS provides transport integrity)
-- **Bearer token**: tg-s3 extension for simplified auth
+- **Bearer token**: tg-s3 extension for simplified auth (Telegram WebApp initData)
+- **Simple Upload API**: `PUT /api/upload?bucket=...&key=...` with `Authorization: Bearer <access_key_id>:<secret_access_key>`. No AWS signature needed. Designed for iOS Shortcuts, curl, scripts, etc.
 
 ## Response Headers
 
