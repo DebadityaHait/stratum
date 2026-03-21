@@ -1,4 +1,4 @@
--- TG-S3 D1 Database Schema
+-- Initial schema: all tables for fresh deployments
 
 CREATE TABLE IF NOT EXISTS buckets (
     name            TEXT    PRIMARY KEY,
@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS objects (
     PRIMARY KEY (bucket, key)
 );
 
--- idx_objects_list 不需要: PRIMARY KEY (bucket, key) 已隐式创建等效索引
 CREATE INDEX IF NOT EXISTS idx_objects_modified ON objects (bucket, last_modified);
 CREATE INDEX IF NOT EXISTS idx_objects_file_uid ON objects (tg_file_unique_id);
 CREATE INDEX IF NOT EXISTS idx_objects_derived ON objects (bucket, derived_from);
@@ -75,8 +74,6 @@ CREATE TABLE IF NOT EXISTS share_tokens (
 CREATE INDEX IF NOT EXISTS idx_share_expires ON share_tokens (expires_at);
 CREATE INDEX IF NOT EXISTS idx_share_object ON share_tokens (bucket, key);
 
--- Chunked file storage: for files exceeding TG single-file limits (>2GB)
--- Each chunk is a separate TG message; the parent object tracks the mapping
 CREATE TABLE IF NOT EXISTS chunks (
     bucket          TEXT    NOT NULL,
     key             TEXT    NOT NULL,
@@ -96,7 +93,6 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     PRIMARY KEY (chat_id, pref_key)
 );
 
--- 密码验证防暴力破解：按 token+IP 维度记录失败次数
 CREATE TABLE IF NOT EXISTS share_password_attempts (
     token           TEXT    NOT NULL,
     ip              TEXT    NOT NULL,
@@ -106,7 +102,6 @@ CREATE TABLE IF NOT EXISTS share_password_attempts (
     PRIMARY KEY (token, ip)
 );
 
--- S3 API 凭据: 多凭据 + 权限管理
 CREATE TABLE IF NOT EXISTS credentials (
     access_key_id       TEXT    PRIMARY KEY,
     secret_access_key   TEXT    NOT NULL,
@@ -118,7 +113,6 @@ CREATE TABLE IF NOT EXISTS credentials (
     is_active           INTEGER NOT NULL DEFAULT 1
 );
 
--- S3 Object Tagging: up to 10 key-value pairs per object
 CREATE TABLE IF NOT EXISTS object_tags (
     bucket          TEXT    NOT NULL,
     key             TEXT    NOT NULL,
@@ -128,7 +122,6 @@ CREATE TABLE IF NOT EXISTS object_tags (
     FOREIGN KEY (bucket, key) REFERENCES objects (bucket, key) ON DELETE CASCADE
 );
 
--- Lifecycle rules: per-bucket expiration policies
 CREATE TABLE IF NOT EXISTS lifecycle_rules (
     id              TEXT    PRIMARY KEY,
     bucket          TEXT    NOT NULL,
@@ -142,7 +135,3 @@ CREATE TABLE IF NOT EXISTS lifecycle_rules (
 );
 
 CREATE INDEX IF NOT EXISTS idx_lifecycle_bucket ON lifecycle_rules (bucket);
-
--- [Phase 2 预留] 分块上传/下载实现时需要的 objects 表扩展:
--- ALTER TABLE objects ADD COLUMN is_chunked INTEGER NOT NULL DEFAULT 0;
--- ALTER TABLE objects ADD COLUMN chunk_count INTEGER;

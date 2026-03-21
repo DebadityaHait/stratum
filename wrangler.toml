@@ -11,6 +11,7 @@ S3_REGION = "us-east-1"
 binding = "DB"
 database_name = "tg-s3-db"
 database_id = ""
+migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "CACHE"
