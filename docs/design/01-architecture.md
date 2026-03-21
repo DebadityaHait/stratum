@@ -65,7 +65,7 @@
 
 职责：
 - 接收并解析 S3 HTTP 请求（路径、headers、query params）
-- 认证：验证 SigV4 签名或 TG WebApp initData 或 Presigned URL
+- 认证：验证 SigV4 签名、Bearer Token、TG WebApp initData 或 Presigned URL
 - 路由：根据操作类型分发到对应 handler
 - 小文件（<=20MB）：直接调用 TG Bot API 存取（上传限制与下载对齐，确保上传的文件可下载）
 - 大文件/媒体处理：转发请求到 VPS
@@ -113,7 +113,7 @@
 
 职责：
 - 文件浏览器界面（面包屑导航、文件列表）
-- 拖拽上传（通过 Presigned URL）
+- 拖拽上传（通过 `/api/miniapp/upload` 直接端点）
 - 图片缩略图预览
 - 分享链接生成/管理
 - 批量操作（选择、删除、分享）

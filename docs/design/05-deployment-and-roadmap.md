@@ -276,6 +276,9 @@ src/
 直接发送文件            - 自动上传到默认 Bucket (可通过 /setbucket 设置)
 ```
 
+> **多语言支持**: Bot 所有消息支持 EN/ZH/JA/FR 四种语言，基于用户 Telegram 客户端语言自动检测
+> (`from.language_code`)。命令描述通过 `setMyCommands` 按语言注册，不支持的语言回退到英文。
+
 ### Bot 交互流程
 
 ```
@@ -366,7 +369,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 
 ## 六、实现路线图
 
-### Phase 1: S3 基础 API (MVP)
+### Phase 1: S3 基础 API (MVP) [已实现]
 
 **目标**: rclone 能正常连接，完成基本增删查操作
 
@@ -392,7 +395,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 估计工作量: ~2000 行 TypeScript
 ```
 
-### Phase 2: 客户端兼容性
+### Phase 2: 客户端兼容性 [已实现]
 
 **目标**: aws cli 和 s3cmd 也能正常工作
 
@@ -456,7 +459,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 估计增量: ~400 行
 ```
 
-### Phase 5: VPS + 大文件
+### Phase 5: VPS + 大文件 [部分实现]
 
 **目标**: 突破 20MB 限制，支持 Range 请求
 
@@ -506,7 +509,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 交付物:
   - Telegram Mini App (纯 HTML/CSS/JS, 内联在 Worker 中)
   - 文件浏览器 (面包屑导航、delimiter 分组、分页)
-  - 拖拽上传 (Presigned URL, 多文件并发)
+  - 拖拽上传 (/api/miniapp/upload 直接端点, 多文件并发)
   - 图片缩略图预览
   - 分享管理 (创建/查看/撤销, 支持口令和有效期)
   - 文件操作 (重命名/移动/删除/详情)
@@ -532,8 +535,9 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
   - 文件上传 (直接发文件给 Bot, 支持 document/photo/video/audio)
   - 文件列表/搜索/删除 (含 Inline Keyboard 确认)
   - 分享链接创建/列表/撤销
-  - Callback Query 处理 (删除确认)
-  - setMyCommands 自动注册
+  - Callback Query 处理 (删除确认、快捷分享、快捷详情)
+  - setMyCommands 自动注册 (按语言注册命令描述)
+  - Bot 多语言支持 (EN/ZH/JA/FR, 基于用户 Telegram 语言自动检测)
 
 估计增量: ~800 行
 ```

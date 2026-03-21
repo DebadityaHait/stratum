@@ -794,6 +794,8 @@ export const shareStrings: Record<Lang, Record<string, string>> = {
     share_not_found_msg: 'This share link is invalid. It may have been revoked or the file was deleted.',
     share_invalid: 'Share Invalid',
     share_invalid_msg: 'This share link is no longer valid.',
+    download_failed: 'Download Failed',
+    download_failed_msg: 'The file could not be downloaded from the storage backend. Please try again later.',
   },
   zh: {
     page_title: '文件分享 - {0}',
@@ -834,6 +836,8 @@ export const shareStrings: Record<Lang, Record<string, string>> = {
     share_not_found_msg: '此分享链接无效，可能已被撤销或文件已删除。',
     share_invalid: '分享已失效',
     share_invalid_msg: '此分享链接已失效，无法继续访问。',
+    download_failed: '下载失败',
+    download_failed_msg: '无法从存储后端下载文件，请稍后重试。',
   },
   ja: {
     page_title: 'ファイル共有 - {0}',
@@ -874,6 +878,8 @@ export const shareStrings: Record<Lang, Record<string, string>> = {
     share_not_found_msg: 'この共有リンクは無効です。取り消されたか、ファイルが削除された可能性があります。',
     share_invalid: '共有が無効です',
     share_invalid_msg: 'この共有リンクは無効になりました。',
+    download_failed: 'ダウンロード失敗',
+    download_failed_msg: 'ストレージバックエンドからファイルをダウンロードできませんでした。後でもう一度お試しください。',
   },
   fr: {
     page_title: 'Partage de fichier - {0}',
@@ -914,6 +920,8 @@ export const shareStrings: Record<Lang, Record<string, string>> = {
     share_not_found_msg: 'Ce lien de partage est invalide. Il a peut-être été révoqué ou le fichier a été supprimé.',
     share_invalid: 'Partage invalide',
     share_invalid_msg: "Ce lien de partage n'est plus valide.",
+    download_failed: 'Echec du téléchargement',
+    download_failed_msg: 'Le fichier n\'a pas pu être téléchargé depuis le stockage. Veuillez réessayer plus tard.',
   },
 };
 

@@ -206,16 +206,18 @@ ${wrongPassword && !lockedMinutes ? `<script>var i=document.getElementById('pwd-
 </html>`;
 }
 
-export function renderExpiredPage(reason?: 'expired' | 'max_downloads' | 'not_found', lang: Lang = 'en'): string {
+export function renderExpiredPage(reason?: 'expired' | 'max_downloads' | 'not_found' | 'download_failed', lang: Lang = 'en'): string {
   const titleMap: Record<string, string> = {
     expired: st(lang, 'share_expired'),
     max_downloads: st(lang, 'share_max_downloads'),
     not_found: st(lang, 'share_not_found'),
+    download_failed: st(lang, 'download_failed'),
   };
   const messageMap: Record<string, string> = {
     expired: st(lang, 'share_expired_msg'),
     max_downloads: st(lang, 'share_max_downloads_msg'),
     not_found: st(lang, 'share_not_found_msg'),
+    download_failed: st(lang, 'download_failed_msg'),
   };
   const title = titleMap[reason || ''] || st(lang, 'share_invalid');
   const message = messageMap[reason || ''] || st(lang, 'share_invalid_msg');

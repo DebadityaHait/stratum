@@ -114,7 +114,12 @@ export async function handleShareApi(request: Request, url: URL, env: Env): Prom
 export async function handleShareAccess(request: Request, url: URL, env: Env): Promise<Response> {
   const path = url.pathname;
   const tokenMatch = path.match(/^\/share\/([^/]+)(\/(.+))?$/);
-  if (!tokenMatch) return new Response('Share not found', { status: 404 });
+  if (!tokenMatch) {
+    const lang = detectLang(request);
+    return new Response(renderExpiredPage('not_found', lang), {
+      status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  }
 
   const token = tokenMatch[1];
   const action = tokenMatch[3]; // 'download' | 'inline' | 'live-video' | undefined
@@ -214,7 +219,10 @@ export async function handleShareAccess(request: Request, url: URL, env: Env): P
   try {
     fileResponse = await serveFile(obj, env, 'attachment', request);
   } catch {
-    return new Response('Download failed', { status: 502 });
+    const lang = detectLang(request);
+    return new Response(renderExpiredPage('download_failed', lang), {
+      status: 502, headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   }
 
   // File fetched successfully — now increment download count
