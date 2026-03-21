@@ -61,7 +61,7 @@ derive_webhook_secret() {
 # 使用逐行重写避免 sed 特殊字符转义问题
 persist_env() {
   local key="$1" val="$2"
-  if grep -qF "${key}=" .env 2>/dev/null; then
+  if grep -q "^${key}=" .env 2>/dev/null; then
     # 逐行重写: 避免 sed 对 val 中 | & \ 等特殊字符的转义问题
     local tmpfile
     tmpfile=$(mktemp "${TMPDIR:-/tmp}/env.XXXXXX")
