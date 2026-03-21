@@ -94,14 +94,14 @@ export async function handleGetObject(s3: S3Request, env: Env, ctx?: ExecutionCo
   // Conditional: If-None-Match (304 if ETag matches)
   const ifNoneMatch = s3.headers.get('if-none-match');
   if (ifNoneMatch && etagMatches(ifNoneMatch, obj.etag)) {
-    return new Response(null, { status: 304, headers });
+    return new Response(null, { status: 304, headers: strip304Headers(headers) });
   }
 
   // Conditional: If-Modified-Since (304 if not modified, skip if If-None-Match present)
   if (!ifNoneMatch) {
     const ifModified = s3.headers.get('if-modified-since');
     if (ifModified && new Date(obj.last_modified).getTime() <= new Date(ifModified).getTime()) {
-      return new Response(null, { status: 304, headers });
+      return new Response(null, { status: 304, headers: strip304Headers(headers) });
     }
   }
 
@@ -392,6 +392,17 @@ function buildResponseHeaders(obj: ObjectRow, query?: URLSearchParams): Record<s
   }
 
   return h;
+}
+
+// RFC 7232 §4.1: 304 responses MUST include ETag, Cache-Control, Expires, Vary, Last-Modified
+// but SHOULD NOT include representation headers like Content-Type, Content-Length, Content-Encoding.
+// AWS S3 304 responses omit these headers.
+const HEADERS_TO_STRIP_304 = ['Content-Type', 'Content-Length', 'Content-Encoding', 'Content-Language', 'Content-Disposition', 'Content-Range', 'Accept-Ranges'];
+
+function strip304Headers(h: Record<string, string>): Record<string, string> {
+  const out = { ...h };
+  for (const name of HEADERS_TO_STRIP_304) delete out[name];
+  return out;
 }
 
 async function handleImageVariant(

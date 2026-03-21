@@ -403,7 +403,10 @@ function routeS3Request(s3: S3Request): S3Operation | null {
     return 'GetObject';
   }
 
-  if (method === 'HEAD') return 'HeadObject';
+  if (method === 'HEAD') {
+    if (hasUnsupportedSubresource(query)) return null;
+    return 'HeadObject';
+  }
 
   if (method === 'PUT') {
     if (query.has('partNumber') && headers.get('x-amz-copy-source')) return 'UploadPartCopy';

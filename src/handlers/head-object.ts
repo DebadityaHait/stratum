@@ -86,14 +86,14 @@ export async function handleHeadObject(s3: S3Request, env: Env): Promise<Respons
   // Conditional: If-None-Match (304 if ETag matches)
   const ifNoneMatch = s3.headers.get('if-none-match');
   if (ifNoneMatch && etagMatches(ifNoneMatch, obj.etag)) {
-    return new Response(null, { status: 304, headers });
+    return new Response(null, { status: 304, headers: strip304Headers(headers) });
   }
 
   // Conditional: If-Modified-Since (304 if not modified, skip if If-None-Match present)
   if (!ifNoneMatch) {
     const ifModified = s3.headers.get('if-modified-since');
     if (ifModified && new Date(obj.last_modified).getTime() <= new Date(ifModified).getTime()) {
-      return new Response(null, { status: 304, headers });
+      return new Response(null, { status: 304, headers: strip304Headers(headers) });
     }
   }
 
@@ -122,4 +122,13 @@ export async function handleHeadObject(s3: S3Request, env: Env): Promise<Respons
   }
 
   return new Response(null, { status: 200, headers });
+}
+
+// RFC 7232 §4.1: 304 responses SHOULD NOT include representation headers.
+const HEADERS_TO_STRIP_304 = ['Content-Type', 'Content-Length', 'Content-Encoding', 'Content-Language', 'Content-Disposition', 'Content-Range', 'Accept-Ranges'];
+
+function strip304Headers(h: Record<string, string>): Record<string, string> {
+  const out = { ...h };
+  for (const name of HEADERS_TO_STRIP_304) delete out[name];
+  return out;
 }

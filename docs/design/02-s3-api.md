@@ -28,7 +28,7 @@ function routeS3Request(method: string, path: string, query: URLSearchParams): S
   if (key) {
     if (method === 'GET' && query.has('uploadId'))     return 'ListParts';
     if (method === 'GET')                              return 'GetObject';
-    if (method === 'HEAD')                             return 'HeadObject';
+    if (method === 'HEAD')                             return 'HeadObject'; // 含子资源检查
     if (method === 'PUT' && query.has('partNumber') && hasHeader('x-amz-copy-source'))
                                                         return 'UploadPartCopy';
     if (method === 'PUT' && query.has('partNumber'))    return 'UploadPart';
@@ -45,7 +45,7 @@ function routeS3Request(method: string, path: string, query: URLSearchParams): S
 
 ### 不支持的子资源操作安全网
 
-路由在匹配数据操作（GetObject/PutObject/DeleteObject）之前，会检查请求是否携带不支持的 S3 子资源查询参数（如 `?acl`, `?tagging`, `?policy` 等）。如果匹配到不支持的子资源，返回 `501 NotImplemented` 而非落到数据操作。这防止了客户端发送 `PUT /{bucket}/{key}?acl` 时将 ACL XML body 当作文件内容覆盖写入的数据损坏风险。
+路由在匹配数据操作（GetObject/HeadObject/PutObject/DeleteObject）之前，会检查请求是否携带不支持的 S3 子资源查询参数（如 `?acl`, `?tagging`, `?policy` 等）。如果匹配到不支持的子资源，返回 `501 NotImplemented` 而非落到数据操作。这防止了客户端发送 `PUT /{bucket}/{key}?acl` 时将 ACL XML body 当作文件内容覆盖写入的数据损坏风险。
 
 拦截的子资源列表: `acl`, `tagging`, `policy`, `cors`, `lifecycle`, `encryption`, `notification`, `replication`, `website`, `logging`, `analytics`, `metrics`, `inventory`, `accelerate`, `requestPayment`, `object-lock`, `legal-hold`, `retention`, `torrent`, `restore`, `select`, `intelligent-tiering`, `ownershipControls`, `publicAccessBlock`, `versions`。
 
@@ -395,6 +395,15 @@ Telegram Mini App 通过 WebApp initData 认证：
 | `Server` | `AmazonS3` | 部分 SDK/工具检查此头 |
 | `Access-Control-Allow-Origin` | `*` | CORS 支持 |
 | `Access-Control-Expose-Headers` | ETag, Content-Range 等 | 浏览器可读取的响应头列表 |
+
+### 304 Not Modified 响应头规范
+
+遵循 RFC 7232 §4.1，304 响应仅保留缓存相关头部，剥离表征头部：
+
+- **保留**: ETag, Last-Modified, Cache-Control, Expires, Vary, x-amz-meta-*
+- **剥离**: Content-Type, Content-Length, Content-Encoding, Content-Language, Content-Disposition, Content-Range, Accept-Ranges
+
+此行为与 AWS S3 一致。
 
 ### 错误响应
 
