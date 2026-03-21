@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS buckets (
     tg_topic_id     INTEGER,
     description     TEXT,
     object_count    INTEGER NOT NULL DEFAULT 0,
-    total_size      INTEGER NOT NULL DEFAULT 0
+    total_size      INTEGER NOT NULL DEFAULT 0,
+    is_public       INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS objects (
@@ -121,6 +122,9 @@ CREATE TABLE IF NOT EXISTS credentials (
     last_used_at        TEXT,
     is_active           INTEGER NOT NULL DEFAULT 1
 );
+
+-- Migration for existing deployments (public bucket access):
+-- ALTER TABLE buckets ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;
 
 -- [Phase 2 预留] 分块上传/下载实现时需要的 objects 表扩展:
 -- ALTER TABLE objects ADD COLUMN is_chunked INTEGER NOT NULL DEFAULT 0;

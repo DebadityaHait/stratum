@@ -318,7 +318,10 @@ async function loadBuckets() {
     }
     el.innerHTML = createBtn + buckets.map(b => \`
       <div class="bucket-card" onclick="openBucket('\${escJs(b.name)}')">
-        <div class="bucket-name">\${esc(b.name)}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="bucket-name">\${esc(b.name)}</div>
+          \${b.is_public ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:var(--link);color:var(--btn-text)">' + esc(t('bucket_public_on')) + '</span>' : ''}
+        </div>
         <div class="bucket-meta">\${esc(t('bucket_files_fmt', b.object_count, formatSize(b.total_size)))}</div>
       </div>
     \`).join('');
@@ -522,7 +525,9 @@ function renderToolbar() {
 
 function renderBreadcrumb() {
   const parts = currentPrefix.split('/').filter(Boolean);
-  let html = '<div class="breadcrumb"><span onclick="navigateDir(\\'\\')">' + esc(currentBucket) + '</span>';
+  const bkt = buckets.find(b => b.name === currentBucket);
+  const isPublic = bkt && bkt.is_public;
+  let html = '<div class="breadcrumb" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><div><span onclick="navigateDir(\\'\\')">' + esc(currentBucket) + '</span>';
   let path = '';
   for (const p of parts) {
     path += p + '/';
@@ -530,7 +535,31 @@ function renderBreadcrumb() {
     html += ' / <span onclick="navigateDir(\\'' + escJs(pathCopy) + '\\')">' + esc(p) + '</span>';
   }
   html += '</div>';
+  // Public toggle
+  html += '<span onclick="toggleBucketPublic(\\'' + escJs(currentBucket) + '\\')" style="cursor:pointer;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;' +
+    (isPublic ? 'background:var(--link);color:var(--btn-text)' : 'background:var(--secondary-bg);color:var(--hint)') + '">' +
+    esc(isPublic ? t('bucket_public_on') : t('bucket_public_off')) + '</span>';
+  html += '</div>';
   return html;
+}
+
+async function toggleBucketPublic(name) {
+  const bkt = buckets.find(b => b.name === name);
+  if (!bkt) return;
+  const newVal = !bkt.is_public;
+  const msg = newVal ? t('bucket_public_enable') : t('bucket_public_disable');
+  if (!confirm(msg)) return;
+  try {
+    await apiFetch('/api/miniapp/bucket?name=' + encodeURIComponent(name), {
+      method: 'PATCH',
+      body: JSON.stringify({ is_public: newVal }),
+    });
+    bkt.is_public = newVal ? 1 : 0;
+    toast(t('bucket_public_updated'));
+    loadFiles();
+  } catch (e) {
+    toast(e.message);
+  }
 }
 
 function navigateDir(prefix) {
@@ -694,28 +723,19 @@ function confirmBatchDelete() {
 async function doBatchDelete() {
   closeModal();
   const keys = [...selectedFiles];
-  let done = 0;
-  const failed = [];
-  const total = keys.length;
-  let lastToast = 0;
-  toast(t('deleting_progress', '0', total));
-  for (const key of keys) {
-    try {
-      await apiFetch('/api/miniapp/object?bucket=' + encodeURIComponent(currentBucket) + '&key=' + encodeURIComponent(key), { method: 'DELETE' });
-      done++;
-    } catch (e) {
-      failed.push(key.split('/').pop() || key);
+  toast(t('batch_deleting'));
+  try {
+    const result = await apiFetch('/api/miniapp/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ bucket: currentBucket, keys }),
+    });
+    if (result.failed && result.failed.length > 0) {
+      toast(t('deleted_with_failures', result.deleted, keys.length, result.failed.join(', ')));
+    } else {
+      toast(t('batch_deleted', result.deleted || keys.length));
     }
-    var now = Date.now();
-    if (now - lastToast >= 500 || done + failed.length >= total) {
-      toast(t('deleting_progress', done, total));
-      lastToast = now;
-    }
-  }
-  if (failed.length > 0) {
-    toast(t('deleted_with_failures', done, total, failed.join(', ')));
-  } else {
-    toast(t('deleted_count', done, total));
+  } catch (e) {
+    toast(t('batch_delete_failed', e.message));
   }
   exitBatchMode();
   loadFiles();
@@ -977,6 +997,14 @@ async function showFileDetail(bucket, key) {
             entries.map(function(e) { return '<div><span style="color:var(--hint)">x-amz-meta-' + esc(e[0]) + ':</span> ' + esc(String(e[1])) + '</div>'; }).join('') +
             '</div></div>';
         } catch(e) { return ''; }
+      })()}
+      \${(function() {
+        const bkt = buckets.find(function(b) { return b.name === bucket; });
+        if (!bkt || !bkt.is_public) return '';
+        const pubUrl = API + '/' + encodeURIComponent(bucket) + '/' + key.split('/').map(encodeURIComponent).join('/');
+        return '<div class="form-group"><label>' + esc(t('bucket_public_url')) + '</label>' +
+          '<div style="display:flex;gap:6px;align-items:center"><input type="text" value="' + esc(pubUrl) + '" readonly style="flex:1;padding:6px 8px;border:1px solid var(--secondary-bg);border-radius:6px;font-size:12px;background:var(--secondary-bg);color:var(--text)" id="publicUrlInput"/>' +
+          '<button class="btn btn-sm btn-outline" onclick="copyText(document.getElementById(\\'publicUrlInput\\').value)" style="white-space:nowrap">' + esc(t('copy_link')) + '</button></div></div>';
       })()}
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
         <button class="btn btn-sm" onclick="downloadFile('\${escJs(bucket)}', '\${escJs(key)}')">\${esc(t('download'))}</button>

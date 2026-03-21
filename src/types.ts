@@ -38,6 +38,7 @@ export interface BucketRow {
   description: string | null;
   object_count: number;
   total_size: number;
+  is_public: number;
 }
 
 export interface MultipartUploadRow {

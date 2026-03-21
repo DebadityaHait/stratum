@@ -83,6 +83,20 @@ export default {
       return addCorsHeaders(await handleMiniAppApi(request, url, env, ctx));
     }
 
+    // Public bucket access: allow unauthenticated GET/HEAD for public buckets
+    if ((request.method === 'GET' || request.method === 'HEAD') && !request.headers.get('authorization') && !url.searchParams.has('X-Amz-Algorithm')) {
+      const { bucket, key } = parseS3Path(url);
+      if (bucket && key) {
+        const store = new MetadataStore(env);
+        const bucketRow = await store.getBucket(bucket);
+        if (bucketRow?.is_public) {
+          const s3: S3Request = { method: request.method, bucket, key, query: url.searchParams, headers: request.headers, body: null, url };
+          const handler = request.method === 'GET' ? handleGetObject : handleHeadObject;
+          return addCorsHeaders(await handler(s3, env, ctx));
+        }
+      }
+    }
+
     // S3 API
     try {
       // Authenticate (returns AuthContext on success, AuthFailure on failure)
@@ -535,6 +549,24 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
     return res;
   }
 
+  // POST /api/miniapp/batch-delete
+  if (path === '/api/miniapp/batch-delete' && method === 'POST') {
+    let body: { bucket: string; keys: string[] };
+    try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
+    if (!body.bucket || !body.keys?.length) return Response.json({ error: 'bucket and keys required' }, { status: 400 });
+    if (body.keys.length > 1000) return Response.json({ error: 'Maximum 1000 keys per batch' }, { status: 400 });
+    let deleted = 0;
+    const failed: string[] = [];
+    for (const key of body.keys) {
+      try {
+        const s3: S3Request = { method: 'DELETE', bucket: body.bucket, key, query: new URLSearchParams(), headers: request.headers, body: null, url };
+        await handleDeleteObject(s3, env, ctx);
+        deleted++;
+      } catch { failed.push(key); }
+    }
+    return Response.json({ deleted, failed });
+  }
+
   // POST /api/miniapp/share
   if (path === '/api/miniapp/share' && method === 'POST') {
     let body: {
@@ -615,6 +647,18 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
     const codeMatch = text.match(/<Code>([^<]+)<\/Code>/);
     const msgMatch = text.match(/<Message>([^<]+)<\/Message>/);
     return Response.json({ error: msgMatch?.[1] || codeMatch?.[1] || 'Failed' }, { status: res.status });
+  }
+
+  // PATCH /api/miniapp/bucket?name=... - update bucket settings
+  if (path === '/api/miniapp/bucket' && method === 'PATCH') {
+    const name = url.searchParams.get('name');
+    if (!name) return Response.json({ error: 'name required' }, { status: 400 });
+    let body: { is_public?: boolean };
+    try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
+    if (body.is_public !== undefined) {
+      await store.updateBucketPublicAccess(name, body.is_public);
+    }
+    return Response.json({ ok: true });
   }
 
   // PUT /api/miniapp/upload?bucket=...&key=... (direct upload, no presigned URL needed)

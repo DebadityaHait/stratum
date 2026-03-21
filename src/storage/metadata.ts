@@ -45,6 +45,10 @@ export class MetadataStore {
     await this.db.prepare('DELETE FROM buckets WHERE name = ?').bind(name).run();
   }
 
+  async updateBucketPublicAccess(name: string, isPublic: boolean): Promise<void> {
+    await this.db.prepare('UPDATE buckets SET is_public = ? WHERE name = ?').bind(isPublic ? 1 : 0, name).run();
+  }
+
   async updateBucketStats(bucket: string, sizeDelta: number, countDelta: number): Promise<void> {
     await this.db.prepare(
       'UPDATE buckets SET total_size = MAX(0, total_size + ?), object_count = MAX(0, object_count + ?) WHERE name = ?'
