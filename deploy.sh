@@ -250,6 +250,21 @@ deploy_cf() {
   echo "$VPS_SECRET" | npx wrangler secret put VPS_SECRET 2>&1 || true
   log "Secrets 配置完成"
 
+  # 配置自定义域名路由 (wrangler deploy 会自动创建 DNS 和证书)
+  if [ -n "${CF_CUSTOM_DOMAIN:-}" ]; then
+    if ! grep -q "custom_domain = true" wrangler.toml 2>/dev/null; then
+      cat >> wrangler.toml <<ROUTE_EOF
+
+[[routes]]
+pattern = "${CF_CUSTOM_DOMAIN}"
+custom_domain = true
+ROUTE_EOF
+      log "已添加自定义域名路由: $CF_CUSTOM_DOMAIN"
+    else
+      log "自定义域名路由已存在"
+    fi
+  fi
+
   # 部署 Worker
   step "部署 Worker"
   if ! DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1); then
@@ -296,12 +311,7 @@ deploy_cf() {
     fi
   fi
 
-  # 自定义域名提示
-  if [ -n "${CF_CUSTOM_DOMAIN:-}" ]; then
-    step "配置自定义域名: $CF_CUSTOM_DOMAIN"
-    warn "请在 Cloudflare Dashboard 中手动绑定自定义域名到 tg-s3 Worker"
-    warn "Workers & Pages -> tg-s3 -> Settings -> Domains & Routes"
-  fi
+  # 自定义域名已通过 wrangler.toml routes 自动配置，无需手动操作
 }
 
 # ============================================================
@@ -520,10 +530,14 @@ deploy_docker() {
   # 等待 processor 就绪
   step "检查 processor 健康状态"
   sleep 2
-  if docker compose ps processor 2>/dev/null | grep -q 'running'; then
+  PROC_STATE=$(docker compose ps processor --format '{{.State}}' 2>/dev/null) || PROC_STATE=""
+  if [ "$PROC_STATE" = "running" ]; then
+    log "processor 运行正常"
+  elif docker compose ps processor 2>/dev/null | grep -qiE 'running|up'; then
     log "processor 运行正常"
   else
-    warn "processor 可能未就绪, 请检查日志: docker compose logs processor"
+    warn "processor 状态: ${PROC_STATE:-未知}"
+    warn "查看日志: docker compose logs processor"
   fi
 }
 
