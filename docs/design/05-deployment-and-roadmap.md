@@ -116,7 +116,7 @@ services:
       - ./.env:/app/.env    # 挂载 .env, 容器内修改可持久化
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
-      - CLOUDFLARE_ACCOUNT_ID=${CF_ACCOUNT_ID:-}
+      - CF_ACCOUNT_ID=${CF_ACCOUNT_ID:-}
     restart: "no"
     profiles: [deploy]
 

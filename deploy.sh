@@ -58,14 +58,21 @@ derive_webhook_secret() {
 }
 
 # 持久化写入 .env (已有则更新，没有则追加)
+# 使用逐行重写避免 sed 特殊字符转义问题
 persist_env() {
   local key="$1" val="$2"
-  if grep -q "^${key}=" .env 2>/dev/null; then
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' "s|^${key}=.*|${key}=${val}|" .env
-    else
-      sed -i "s|^${key}=.*|${key}=${val}|" .env
-    fi
+  if grep -qF "${key}=" .env 2>/dev/null; then
+    # 逐行重写: 避免 sed 对 val 中 | & \ 等特殊字符的转义问题
+    local tmpfile
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/env.XXXXXX")
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [[ "$line" == "${key}="* ]]; then
+        echo "${key}=${val}"
+      else
+        echo "$line"
+      fi
+    done < .env > "$tmpfile"
+    mv "$tmpfile" .env
   else
     echo "${key}=${val}" >> .env
   fi
@@ -183,7 +190,11 @@ deploy_cf() {
 
   # 部署 Worker
   step "部署 Worker"
-  DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
+  if ! DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1); then
+    err "Worker 部署失败:"
+    echo "$DEPLOY_OUTPUT" >&2
+    exit 1
+  fi
   echo "$DEPLOY_OUTPUT"
 
   WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[^ ]+\.workers\.dev' | head -1)
@@ -382,15 +393,24 @@ deploy_docker() {
 
   # 逐个构建镜像 (避免 BuildKit 并行构建 bug)
   step "构建 Docker 镜像 (deploy)"
-  docker compose build deploy
+  if ! docker compose build deploy; then
+    err "deploy 镜像构建失败"
+    exit 1
+  fi
 
   step "构建 Docker 镜像 (processor)"
-  docker compose build processor
+  if ! docker compose build processor; then
+    err "processor 镜像构建失败"
+    exit 1
+  fi
 
   # 通过 deploy 容器部署 CF Worker + 配置 Tunnel
   # .env 文件以 volume 挂载到容器，容器内修改 (CF_TUNNEL_TOKEN 等) 自动持久化
   step "部署 CF Worker"
-  docker compose --profile deploy run --rm -T deploy
+  if ! docker compose --profile deploy run --rm -T deploy; then
+    err "CF Worker 部署失败, 请检查日志"
+    exit 1
+  fi
 
   # 重新加载 .env (容器可能写入了 CF_TUNNEL_TOKEN, VPS_URL, VPS_SECRET)
   set -a
