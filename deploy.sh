@@ -245,12 +245,19 @@ deploy_cf() {
     step "注册 Telegram Bot Webhook"
     WEBHOOK_URL="$EFFECTIVE_URL/bot/webhook"
     WEBHOOK_SECRET=$(TG_BOT_TOKEN="$TG_BOT_TOKEN" derive_webhook_secret)
-    WEBHOOK_RES=$(curl -s "https://api.telegram.org/bot${TG_BOT_TOKEN}/setWebhook?url=${WEBHOOK_URL}&secret_token=${WEBHOOK_SECRET}" 2>&1) || true
+    WEBHOOK_RES=$(curl -s -X POST \
+      "https://api.telegram.org/bot${TG_BOT_TOKEN}/setWebhook" \
+      -H "Content-Type: application/json" \
+      -d "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${WEBHOOK_SECRET}\"}" 2>&1) || WEBHOOK_RES=""
     if echo "$WEBHOOK_RES" | grep -q '"ok":true'; then
       log "Webhook 注册成功: $WEBHOOK_URL"
     else
-      warn "Webhook 注册可能失败, 请手动检查"
-      [ -n "$WEBHOOK_RES" ] && warn "  响应: $WEBHOOK_RES"
+      warn "Webhook 注册失败"
+      if [ -n "$WEBHOOK_RES" ]; then
+        warn "  响应: $WEBHOOK_RES"
+      else
+        warn "  无法连接 api.telegram.org (网络问题?)"
+      fi
     fi
   fi
 
@@ -275,8 +282,8 @@ setup_tunnel() {
   fi
 
   if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-    warn "需要 CLOUDFLARE_API_TOKEN 来自动创建 tunnel"
-    warn "或在 CF Dashboard > Zero Trust > Tunnels 手动创建后设置 CF_TUNNEL_TOKEN"
+    warn "跳过 tunnel 自动创建 (需要 CLOUDFLARE_API_TOKEN)"
+    warn "手动创建: CF Dashboard > Zero Trust > Tunnels, 然后设置 CF_TUNNEL_TOKEN"
     return 1
   fi
 
@@ -304,27 +311,42 @@ setup_tunnel() {
 
   # 检查是否已有同名 tunnel
   step "检查现有 tunnel"
+  local LIST_RESP=""
+  LIST_RESP=$(curl -s "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel?name=tg-s3&is_deleted=false" \
+    -H "$AUTH_HEADER" 2>&1) || LIST_RESP=""
   local EXISTING=""
-  EXISTING=$(curl -s "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel?name=tg-s3&is_deleted=false" \
-    -H "$AUTH_HEADER" | \
+  EXISTING=$(echo "$LIST_RESP" | \
     node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); const t=d.result?.find(t=>t.name==='tg-s3'); console.log(t?.id||'')" 2>/dev/null) || EXISTING=""
 
   local TUNNEL_ID=""
+  local TUNNEL_TOKEN_FROM_CREATE=""
   if [ -n "$EXISTING" ]; then
     TUNNEL_ID="$EXISTING"
     log "已有 tunnel tg-s3: ${TUNNEL_ID:0:8}..."
   else
+    # 检查 API 权限 (list 失败说明 token 无权限)
+    if echo "$LIST_RESP" | grep -q '"success":false'; then
+      warn "API Token 缺少 Cloudflare Tunnel 权限"
+      warn "请在 CF Dashboard > 我的个人资料 > API 令牌 中添加:"
+      warn "  Account | Cloudflare Tunnel | Edit"
+      warn "响应: $LIST_RESP"
+      return 1
+    fi
+
     step "创建 Cloudflare Tunnel: tg-s3"
-    local TUNNEL_SECRET
-    TUNNEL_SECRET=$(openssl rand -base64 32 2>/dev/null || node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
-    local CREATE_RESP
+    local CREATE_RESP=""
     CREATE_RESP=$(curl -s -X POST "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel" \
       -H "$AUTH_HEADER" \
       -H "Content-Type: application/json" \
-      -d "{\"name\":\"tg-s3\",\"tunnel_secret\":\"$TUNNEL_SECRET\",\"config_src\":\"cloudflare\"}") || CREATE_RESP=""
+      -d '{"name":"tg-s3","config_src":"cloudflare"}' 2>&1) || CREATE_RESP=""
     TUNNEL_ID=$(echo "$CREATE_RESP" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.id||'')" 2>/dev/null) || TUNNEL_ID=""
+    # 创建响应直接包含 token，无需单独获取
+    TUNNEL_TOKEN_FROM_CREATE=$(echo "$CREATE_RESP" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.token||'')" 2>/dev/null) || TUNNEL_TOKEN_FROM_CREATE=""
     if [ -z "$TUNNEL_ID" ]; then
-      warn "tunnel 创建失败, 请在 CF Dashboard 手动创建"
+      warn "tunnel 创建失败"
+      if echo "$CREATE_RESP" | grep -q '"code":10000'; then
+        warn "API Token 权限不足，需要 Cloudflare Tunnel: Edit"
+      fi
       [ -n "$CREATE_RESP" ] && warn "响应: $CREATE_RESP"
       return 1
     fi
@@ -377,19 +399,24 @@ setup_tunnel() {
     warn "请手动添加 DNS CNAME: $TUNNEL_HOSTNAME -> $TUNNEL_ID.cfargotunnel.com"
   fi
 
-  # 获取 tunnel token
-  step "获取 tunnel connector token"
-  local TOKEN_RESP
-  TOKEN_RESP=$(curl -s "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/token" \
-    -H "$AUTH_HEADER") || TOKEN_RESP=""
-  CF_TUNNEL_TOKEN=$(echo "$TOKEN_RESP" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result||'')" 2>/dev/null) || CF_TUNNEL_TOKEN=""
-
-  if [ -z "$CF_TUNNEL_TOKEN" ]; then
-    warn "无法获取 tunnel token"
-    warn "请在 CF Dashboard > Zero Trust > Tunnels > tg-s3 中获取 token"
-    return 1
+  # 获取 tunnel token (优先使用创建响应中的 token)
+  if [ -n "$TUNNEL_TOKEN_FROM_CREATE" ]; then
+    CF_TUNNEL_TOKEN="$TUNNEL_TOKEN_FROM_CREATE"
+    log "Tunnel token 已从创建响应获取"
+  else
+    step "获取 tunnel connector token"
+    local TOKEN_RESP=""
+    TOKEN_RESP=$(curl -s "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/token" \
+      -H "$AUTH_HEADER" 2>&1) || TOKEN_RESP=""
+    CF_TUNNEL_TOKEN=$(echo "$TOKEN_RESP" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result||'')" 2>/dev/null) || CF_TUNNEL_TOKEN=""
+    if [ -z "$CF_TUNNEL_TOKEN" ]; then
+      warn "无法获取 tunnel token"
+      [ -n "$TOKEN_RESP" ] && warn "响应: $TOKEN_RESP"
+      warn "请在 CF Dashboard > Zero Trust > Tunnels > tg-s3 中获取 token"
+      return 1
+    fi
+    log "Tunnel token 已获取"
   fi
-  log "Tunnel token 已获取"
 
   # 写入 .env (volume 挂载时自动持久化到宿主机)
   persist_env CF_TUNNEL_TOKEN "$CF_TUNNEL_TOKEN"
