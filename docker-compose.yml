@@ -1,19 +1,19 @@
 services:
-  # 使用 Cloudflare Tunnel 部署 (build 和 up 必须分开执行):
-  #   docker compose --profile tunnel build
-  #   docker compose --profile tunnel up -d
-  #
-  # 仅重新部署 CF Worker (不重启 processor):
-  #   docker compose run --rm deploy
+  # CF Worker 部署服务 (一次性, 由 ./deploy.sh 编排调用)
+  # 不会随 docker compose up 自动启动, 需通过 deploy profile 显式调用
   deploy:
     build:
       context: .
       dockerfile: Dockerfile.deploy
     env_file: .env
+    volumes:
+      - ./.env:/app/.env
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CLOUDFLARE_ACCOUNT_ID=${CF_ACCOUNT_ID:-}
     restart: "no"
+    profiles:
+      - deploy
 
   # VPS 本地处理服务 (大文件 + 媒体处理)
   # Tunnel 和 Caddy 均通过 Docker 内部网络访问, 无需暴露宿主机端口
@@ -36,9 +36,6 @@ services:
           memory: 2G
 
   # Cloudflare Tunnel: 安全暴露 processor 给 CF Worker, 无需开放公网端口
-  # 启用方法: 在 .env 中设置 CF_TUNNEL_TOKEN, 然后:
-  #   docker compose --profile tunnel up -d
-  # 或由 deploy.sh 自动创建 (需要 CF_CUSTOM_DOMAIN)
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped

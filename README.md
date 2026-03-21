@@ -55,36 +55,17 @@ Share Links ────┘         ▼
 - A Telegram group/supergroup (get chat ID via [@userinfobot](https://t.me/userinfobot))
 - A [Cloudflare account](https://dash.cloudflare.com)
 
-### Option 1: Docker (recommended)
+### One-Command Deploy
 
 ```bash
 git clone https://github.com/gps949/tg-s3.git
 cd tg-s3
 cp .env.example .env
-# Edit .env: only TG_BOT_TOKEN, DEFAULT_CHAT_ID, and CLOUDFLARE_API_TOKEN needed
-docker compose up -d
-
-# With Cloudflare Tunnel (recommended, no open port needed):
-docker compose --profile tunnel up -d
+# Edit .env: fill in TG_BOT_TOKEN, DEFAULT_CHAT_ID, CLOUDFLARE_API_TOKEN
+./deploy.sh
 ```
 
-The `deploy` service pushes the Worker to Cloudflare and auto-generates secrets. S3 credentials can be created in the Telegram Mini App (Keys tab) when needed.
-
-### Option 2: Manual deployment
-
-```bash
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
-npm install
-cp .env.example .env
-# Edit .env: only TG_BOT_TOKEN and DEFAULT_CHAT_ID required
-
-# Deploy Cloudflare Worker (auto-generates all secrets)
-./deploy.sh --cf-only
-
-# (Optional) Deploy VPS processor
-./deploy.sh --vps-only
-```
+`deploy.sh` auto-detects the environment: with Docker it builds images, deploys the CF Worker, configures Cloudflare Tunnel, and starts all services; without Docker it uses local wrangler. S3 credentials can be created in the Telegram Mini App (Keys tab).
 
 ### Verify
 

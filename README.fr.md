@@ -62,15 +62,12 @@ git clone https://github.com/gps949/tg-s3.git
 cd tg-s3
 cp .env.example .env
 # Editez .env : seuls TG_BOT_TOKEN, DEFAULT_CHAT_ID et CLOUDFLARE_API_TOKEN sont necessaires
-docker compose up -d
-
-# Avec Cloudflare Tunnel (recommande, pas de port a exposer) :
-docker compose --profile tunnel up -d
+./deploy.sh
 ```
 
-Le service `deploy` pousse le Worker sur Cloudflare et genere automatiquement les secrets. Les identifiants S3 peuvent etre crees dans le Mini App Telegram (onglet Keys) selon les besoins.
+Le script detecte automatiquement l'environnement et gere tout : construction des images, deploiement du Worker, configuration du tunnel (si `CF_CUSTOM_DOMAIN` est defini) et demarrage des services. Les identifiants S3 peuvent etre crees dans le Mini App Telegram (onglet Keys) selon les besoins.
 
-### Option 2 : Deploiement manuel
+### Option 2 : Deploiement manuel (sans Docker)
 
 ```bash
 git clone https://github.com/gps949/tg-s3.git
@@ -79,11 +76,11 @@ npm install
 cp .env.example .env
 # Editez .env : seuls TG_BOT_TOKEN et DEFAULT_CHAT_ID sont necessaires
 
-# Deployer le Cloudflare Worker (genere automatiquement tous les secrets)
-./deploy.sh --cf-only
+# Deployer (detection automatique de l'environnement, generation de tous les secrets)
+./deploy.sh
 
-# (Optionnel) Deployer le processeur VPS
-./deploy.sh --vps-only
+# (Optionnel) Deploiement VPS SSH legacy
+./deploy.sh --vps
 ```
 
 ### Verification

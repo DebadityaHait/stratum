@@ -62,15 +62,12 @@ git clone https://github.com/gps949/tg-s3.git
 cd tg-s3
 cp .env.example .env
 # .env を編集: TG_BOT_TOKEN、DEFAULT_CHAT_ID、CLOUDFLARE_API_TOKEN のみ必要
-docker compose up -d
-
-# Cloudflare Tunnel 使用時（推奨、ポート公開不要）:
-docker compose --profile tunnel up -d
+./deploy.sh
 ```
 
-`deploy` サービスが Worker を Cloudflare にプッシュし、シークレットを自動生成します。S3 認証情報は Telegram Mini App の Keys タブで必要に応じて作成できます。
+スクリプトが環境を自動検出し、イメージのビルド、Worker のデプロイ、トンネル設定（`CF_CUSTOM_DOMAIN` 設定時）、サービスの起動をすべて処理します。S3 認証情報は Telegram Mini App の Keys タブで必要に応じて作成できます。
 
-### 方法 2: 手動デプロイ
+### 方法 2: 手動デプロイ（Docker なし）
 
 ```bash
 git clone https://github.com/gps949/tg-s3.git
@@ -79,11 +76,11 @@ npm install
 cp .env.example .env
 # .env を編集: TG_BOT_TOKEN と DEFAULT_CHAT_ID のみ必要
 
-# Cloudflare Worker をデプロイ（すべてのシークレットを自動生成）
-./deploy.sh --cf-only
+# デプロイ（環境を自動検出、すべてのシークレットを自動生成）
+./deploy.sh
 
-# （オプション）VPS プロセッサをデプロイ
-./deploy.sh --vps-only
+# （オプション）レガシー VPS SSH デプロイ
+./deploy.sh --vps
 ```
 
 ### 動作確認

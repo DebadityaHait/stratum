@@ -3,14 +3,21 @@ set -euo pipefail
 
 # ============================================================
 # tg-s3 一键部署脚本
-# 用法: ./deploy.sh [--cf-only | --vps-only | --all]
-# 默认: --all (部署 CF Worker + VPS)
+#
+# 用法: ./deploy.sh
+#   自动检测运行环境:
+#   - 宿主机 + Docker 可用: 构建镜像 + 部署 Worker + 启动所有服务
+#   - 宿主机 + 无 Docker:   使用本地 wrangler 部署 Worker
+#   - Docker 容器内:         仅部署 Worker (由宿主机编排调用)
+#
+# 可选参数:
+#   --vps    传统 SSH 部署模式 (非 Docker)
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 颜色
+# ---- 颜色 ----
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -22,12 +29,17 @@ warn() { echo -e "${YELLOW}[!!]${NC} $1"; }
 err()  { echo -e "${RED}[ERR]${NC} $1" >&2; }
 step() { echo -e "\n${CYAN}==>${NC} $1"; }
 
-# 生成随机字符串 (base62, 指定长度)
 gen_random() {
   local len="${1:-32}"
   LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$len" 2>/dev/null || \
     openssl rand -base64 "$((len * 2))" | tr -dc 'A-Za-z0-9' | head -c "$len"
 }
+
+# ---- 环境检测 ----
+IN_CONTAINER=0
+if [ -f /.dockerenv ] || grep -qsE 'docker|containerd' /proc/1/cgroup 2>/dev/null; then
+  IN_CONTAINER=1
+fi
 
 # ---- 加载 .env ----
 if [ ! -f .env ]; then
@@ -40,29 +52,31 @@ set -a
 source .env
 set +a
 
-# ---- 自动生成可自动化的 secrets ----
-# Webhook secret 从 TG_BOT_TOKEN 派生，不再需要 BEARER_TOKEN
+# ---- 工具函数 ----
 derive_webhook_secret() {
   node -e "const c=require('crypto');console.log(c.createHmac('sha256',process.env.TG_BOT_TOKEN).update('tg-s3-webhook').digest('hex'))"
 }
 
+# 持久化写入 .env (已有则更新，没有则追加)
+persist_env() {
+  local key="$1" val="$2"
+  if grep -q "^${key}=" .env 2>/dev/null; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' "s|^${key}=.*|${key}=${val}|" .env
+    else
+      sed -i "s|^${key}=.*|${key}=${val}|" .env
+    fi
+  else
+    echo "${key}=${val}" >> .env
+  fi
+}
+
+# ---- 自动生成 secrets (写回 .env) ----
 if [ -z "${VPS_SECRET:-}" ]; then
   VPS_SECRET="$(gen_random 48)"
-  log "自动生成 VPS_SECRET"
+  persist_env VPS_SECRET "$VPS_SECRET"
+  log "自动生成 VPS_SECRET (已写入 .env)"
 fi
-
-# ---- 参数解析 ----
-MODE="all"
-case "${1:-}" in
-  --cf-only)  MODE="cf" ;;
-  --vps-only) MODE="vps" ;;
-  --all)      MODE="all" ;;
-  "")         MODE="all" ;;
-  *)
-    echo "用法: $0 [--cf-only | --vps-only | --all]"
-    exit 1
-    ;;
-esac
 
 # ---- 校验必填项 ----
 validate_required() {
@@ -79,20 +93,12 @@ validate_required() {
   fi
 }
 
-validate_vps() {
-  if [ -z "${VPS_SSH:-}" ]; then
-    err "VPS 部署需要设置 VPS_SSH (如 root@1.2.3.4)"
-    exit 1
-  fi
-}
-
 # ============================================================
-# CF Worker 部署
+# CF Worker 部署 (在容器内或本地执行)
 # ============================================================
 deploy_cf() {
   step "部署 Cloudflare Worker"
 
-  # 检查 wrangler
   if ! command -v npx &>/dev/null; then
     err "需要 Node.js 和 npm, 请先安装"
     exit 1
@@ -105,7 +111,7 @@ deploy_cf() {
     log "依赖安装完成"
   fi
 
-  # 检查 wrangler 登录状态
+  # 检查 wrangler 认证
   step "检查 Cloudflare 认证状态"
   if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
     log "使用 CLOUDFLARE_API_TOKEN 认证"
@@ -121,7 +127,6 @@ deploy_cf() {
     step "创建 D1 数据库 tg-s3-db"
     DB_OUTPUT=$(npx wrangler d1 create tg-s3-db 2>&1) || true
 
-    # 提取 database_id
     DB_ID=$(echo "$DB_OUTPUT" | grep -o 'database_id = "[^"]*"' | head -1 | sed 's/database_id = "\(.*\)"/\1/')
     if [ -z "$DB_ID" ]; then
       # 数据库可能已存在, 尝试从 list 获取
@@ -129,8 +134,7 @@ deploy_cf() {
     fi
 
     if [ -z "$DB_ID" ]; then
-      err "无法获取 D1 数据库 ID, 请手动创建:"
-      err "  npx wrangler d1 create tg-s3-db"
+      err "无法获取 D1 数据库 ID"
       exit 1
     fi
 
@@ -146,7 +150,7 @@ deploy_cf() {
     log "D1 数据库已存在: $DB_ID"
   fi
 
-  # 创建 R2 缓存 bucket (如果不存在)
+  # 创建 R2 缓存 bucket
   step "创建 R2 缓存 bucket tg-s3-cache"
   if npx wrangler r2 bucket list 2>&1 | grep -q 'tg-s3-cache'; then
     log "R2 缓存 bucket 已存在"
@@ -155,7 +159,7 @@ deploy_cf() {
     log "R2 缓存 bucket 创建完成"
   fi
 
-  # R2 lifecycle: 90 天兜底 GC (实际清理由 cron 智能完成，lifecycle 只防止遗漏)
+  # R2 lifecycle: 90 天兜底 GC
   step "配置 R2 兜底清理策略 (90 天)"
   npx wrangler r2 bucket lifecycle add tg-s3-cache \
     --expire-days 90 \
@@ -167,11 +171,10 @@ deploy_cf() {
   npx wrangler d1 execute tg-s3-db --remote --file=src/storage/schema.sql --yes 2>&1 || true
   log "数据库 schema 已应用"
 
-  # 设置 secrets (webhook secret 从 TG_BOT_TOKEN 派生，无需单独设置)
+  # 设置 secrets
   step "配置 Worker secrets"
   echo "$TG_BOT_TOKEN" | npx wrangler secret put TG_BOT_TOKEN 2>&1 || true
   echo "$DEFAULT_CHAT_ID" | npx wrangler secret put DEFAULT_CHAT_ID 2>&1 || true
-
   if [ -n "${VPS_URL:-}" ]; then
     echo "$VPS_URL" | npx wrangler secret put VPS_URL 2>&1 || true
   fi
@@ -183,7 +186,6 @@ deploy_cf() {
   DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
   echo "$DEPLOY_OUTPUT"
 
-  # 提取 Worker URL
   WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[^ ]+\.workers\.dev' | head -1)
   if [ -n "$WORKER_URL" ]; then
     log "Worker 部署成功: $WORKER_URL"
@@ -191,7 +193,7 @@ deploy_cf() {
     log "Worker 部署完成"
   fi
 
-  # 设置 WORKER_URL secret (cron CDN 缓存清理和 bot 分享链接需要)
+  # 设置 WORKER_URL secret
   EFFECTIVE_URL="${CF_CUSTOM_DOMAIN:+https://$CF_CUSTOM_DOMAIN}"
   EFFECTIVE_URL="${EFFECTIVE_URL:-$WORKER_URL}"
   if [ -n "$EFFECTIVE_URL" ]; then
@@ -214,7 +216,7 @@ deploy_cf() {
     fi
   fi
 
-  # 设置自定义域名
+  # 自定义域名提示
   if [ -n "${CF_CUSTOM_DOMAIN:-}" ]; then
     step "配置自定义域名: $CF_CUSTOM_DOMAIN"
     warn "请在 Cloudflare Dashboard 中手动绑定自定义域名到 tg-s3 Worker"
@@ -224,19 +226,16 @@ deploy_cf() {
 
 # ============================================================
 # Cloudflare Tunnel 自动创建
-# 需要: CLOUDFLARE_API_TOKEN + CF_CUSTOM_DOMAIN
-# 创建后写入 CF_TUNNEL_TOKEN 到 .env
+# 创建后自动写入 CF_TUNNEL_TOKEN 到 .env (挂载 volume 时可持久化)
 # ============================================================
 setup_tunnel() {
   step "配置 Cloudflare Tunnel"
 
-  # 如果已有 token, 跳过创建
   if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
     log "CF_TUNNEL_TOKEN 已设置, 跳过 tunnel 创建"
     return 0
   fi
 
-  # 需要 API Token 和自定义域名
   if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
     warn "需要 CLOUDFLARE_API_TOKEN 来自动创建 tunnel"
     warn "或在 CF Dashboard > Zero Trust > Tunnels 手动创建后设置 CF_TUNNEL_TOKEN"
@@ -276,7 +275,6 @@ setup_tunnel() {
     TUNNEL_ID="$EXISTING"
     log "已有 tunnel tg-s3: ${TUNNEL_ID:0:8}..."
   else
-    # 创建 tunnel
     step "创建 Cloudflare Tunnel: tg-s3"
     local TUNNEL_SECRET
     TUNNEL_SECRET=$(openssl rand -base64 32 2>/dev/null || node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
@@ -303,39 +301,32 @@ setup_tunnel() {
     -d "{\"config\":{\"ingress\":[{\"hostname\":\"$TUNNEL_HOSTNAME\",\"service\":\"http://processor:3000\",\"originRequest\":{\"noTLSVerify\":true}},{\"service\":\"http_status:404\"}]}}" >/dev/null 2>&1 || true
   log "Tunnel ingress 已配置"
 
-  # 创建 DNS CNAME (如果不存在)
+  # 创建 DNS CNAME
   step "配置 DNS: $TUNNEL_HOSTNAME -> tunnel"
-  # 找到 zone: 从 CF_CUSTOM_DOMAIN 提取根域 (尝试匹配)
   local ZONE_ID=""
-  # 先尝试完整域名, 再逐级去掉子域
   local DOMAIN="$CF_CUSTOM_DOMAIN"
   while [ -n "$DOMAIN" ] && [ -z "$ZONE_ID" ]; do
     ZONE_ID=$(curl -sf "$CF_API/zones?name=$DOMAIN" -H "$AUTH_HEADER" | \
       node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.[0]?.id||'')" 2>/dev/null) || ZONE_ID=""
     if [ -z "$ZONE_ID" ]; then
-      # 去掉最左边的子域
       DOMAIN="${DOMAIN#*.}"
-      # 如果没有点了, 停止
       if [[ "$DOMAIN" != *.* ]]; then break; fi
     fi
   done
 
   if [ -n "$ZONE_ID" ]; then
-    # 检查记录是否已存在
     local EXISTING_DNS
     EXISTING_DNS=$(curl -sf "$CF_API/zones/$ZONE_ID/dns_records?name=$TUNNEL_HOSTNAME&type=CNAME" \
       -H "$AUTH_HEADER" | \
       node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.[0]?.id||'')" 2>/dev/null) || EXISTING_DNS=""
 
     if [ -n "$EXISTING_DNS" ]; then
-      # 更新现有记录
       curl -sf -X PUT "$CF_API/zones/$ZONE_ID/dns_records/$EXISTING_DNS" \
         -H "$AUTH_HEADER" \
         -H "Content-Type: application/json" \
         -d "{\"type\":\"CNAME\",\"name\":\"$TUNNEL_HOSTNAME\",\"content\":\"$TUNNEL_ID.cfargotunnel.com\",\"proxied\":true}" >/dev/null 2>&1 || true
       log "DNS 记录已更新: $TUNNEL_HOSTNAME"
     else
-      # 创建新记录
       curl -sf -X POST "$CF_API/zones/$ZONE_ID/dns_records" \
         -H "$AUTH_HEADER" \
         -H "Content-Type: application/json" \
@@ -361,43 +352,83 @@ setup_tunnel() {
   fi
   log "Tunnel token 已获取"
 
-  # 写入 .env (追加或更新)
-  if grep -q '^CF_TUNNEL_TOKEN=' .env 2>/dev/null; then
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' "s|^CF_TUNNEL_TOKEN=.*|CF_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN|" .env
-    else
-      sed -i "s|^CF_TUNNEL_TOKEN=.*|CF_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN|" .env
-    fi
-  else
-    echo "" >> .env
-    echo "CF_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN" >> .env
-  fi
+  # 写入 .env (volume 挂载时自动持久化到宿主机)
+  persist_env CF_TUNNEL_TOKEN "$CF_TUNNEL_TOKEN"
   log "CF_TUNNEL_TOKEN 已写入 .env"
 
   # 设置 VPS_URL 为 tunnel 域名
   VPS_URL="https://$TUNNEL_HOSTNAME"
+  persist_env VPS_URL "$VPS_URL"
   log "VPS_URL 已设为: $VPS_URL"
 
   # 同步到 Worker secrets
   echo "$VPS_URL" | npx wrangler secret put VPS_URL 2>&1 || true
   log "VPS_URL secret 已更新"
 
-  echo ""
-  echo -e "  ${GREEN}Cloudflare Tunnel 配置完成${NC}"
-  echo -e "  Tunnel hostname: ${CYAN}$TUNNEL_HOSTNAME${NC}"
-  echo -e "  启动 tunnel:  ${CYAN}docker compose --profile tunnel up -d${NC}"
-  echo ""
-
   TUNNEL_CONFIGURED=1
 }
 
 # ============================================================
-# VPS 部署 (非 Docker 模式, 通过 SSH 部署到远程 VPS)
+# Docker 全自动编排 (宿主机执行)
+# ============================================================
+deploy_docker() {
+  # 检查 CLOUDFLARE_API_TOKEN (Docker 模式必需)
+  if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    err "Docker 部署需要 CLOUDFLARE_API_TOKEN"
+    err "请在 .env 中设置，或使用本地 wrangler 部署:"
+    err "  npm install && npx wrangler login && npx wrangler deploy"
+    exit 1
+  fi
+
+  # 逐个构建镜像 (避免 BuildKit 并行构建 bug)
+  step "构建 Docker 镜像 (deploy)"
+  docker compose build deploy
+
+  step "构建 Docker 镜像 (processor)"
+  docker compose build processor
+
+  # 通过 deploy 容器部署 CF Worker + 配置 Tunnel
+  # .env 文件以 volume 挂载到容器，容器内修改 (CF_TUNNEL_TOKEN 等) 自动持久化
+  step "部署 CF Worker"
+  docker compose --profile deploy run --rm -T deploy
+
+  # 重新加载 .env (容器可能写入了 CF_TUNNEL_TOKEN, VPS_URL, VPS_SECRET)
+  set -a
+  source .env
+  set +a
+
+  # 启动常驻服务
+  step "启动服务"
+  if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
+    docker compose --profile tunnel up -d
+    log "processor + tunnel 已启动"
+  else
+    docker compose up -d processor
+    warn "未配置 Cloudflare Tunnel (缺少 CF_CUSTOM_DOMAIN 或 API Token 权限不足)"
+    warn "processor 已启动但外部无法访问"
+    warn "如需 tunnel，请设置 CF_CUSTOM_DOMAIN 后重新运行 ./deploy.sh"
+  fi
+
+  # 等待 processor 就绪
+  step "检查 processor 健康状态"
+  sleep 2
+  if docker compose ps processor 2>/dev/null | grep -q 'running'; then
+    log "processor 运行正常"
+  else
+    warn "processor 可能未就绪, 请检查日志: docker compose logs processor"
+  fi
+}
+
+# ============================================================
+# VPS SSH 部署 (非 Docker 模式)
 # ============================================================
 deploy_vps() {
   step "部署 VPS 处理服务"
 
-  validate_vps
+  if [ -z "${VPS_SSH:-}" ]; then
+    err "VPS 部署需要设置 VPS_SSH (如 root@1.2.3.4)"
+    exit 1
+  fi
 
   VPS_DIR="${VPS_DEPLOY_DIR:-/opt/tg-s3}"
 
@@ -468,7 +499,6 @@ DEPLOY_CMD
   if ssh "$VPS_SSH" "curl -sf -o /dev/null http://127.0.0.1:${VPS_PORT:-3000}/api/jobs/nonexistent 2>/dev/null"; then
     log "VPS 处理服务运行正常"
   else
-    # 404 is expected for nonexistent job, but connection should work
     if ssh "$VPS_SSH" "curl -sf -w '%{http_code}' -o /dev/null http://127.0.0.1:${VPS_PORT:-3000}/api/jobs/test 2>/dev/null" | grep -qE '40[0-9]'; then
       log "VPS 处理服务运行正常 (API 响应中)"
     else
@@ -479,7 +509,7 @@ DEPLOY_CMD
 }
 
 # ============================================================
-# 部署后配置提示
+# 部署完成摘要
 # ============================================================
 print_summary() {
   echo ""
@@ -488,25 +518,31 @@ print_summary() {
   echo -e "${GREEN}============================================================${NC}"
   echo ""
 
-  if [ "$MODE" != "vps" ] && [ -n "${WORKER_URL:-}" ]; then
+  if [ -n "${EFFECTIVE_URL:-}" ]; then
+    echo -e "  访问地址:    ${CYAN}${EFFECTIVE_URL}${NC}"
+    echo -e "  Mini App:    ${CYAN}${EFFECTIVE_URL}/miniapp${NC}"
+  elif [ -n "${WORKER_URL:-}" ]; then
     echo -e "  Worker URL:  ${CYAN}${WORKER_URL}${NC}"
+    echo -e "  Mini App:    ${CYAN}${WORKER_URL}/miniapp${NC}"
   fi
-  if [ "$MODE" != "cf" ] && [ -n "${VPS_URL:-}" ]; then
-    if [ "$TUNNEL_CONFIGURED" -eq 1 ]; then
-      echo -e "  Tunnel URL:  ${CYAN}${VPS_URL}${NC} (via Cloudflare Tunnel)"
-    else
-      echo -e "  VPS URL:     ${CYAN}${VPS_URL}${NC}"
-    fi
+
+  if [ -n "${VPS_URL:-}" ]; then
+    echo -e "  Processor:   ${CYAN}${VPS_URL}${NC} (via Cloudflare Tunnel)"
   fi
 
   echo ""
   echo -e "  S3 凭据请在 Telegram Mini App 的 ${CYAN}Keys${NC} 标签页中创建"
-
   echo ""
   echo "  快速验证:"
-  echo "  rclone mkdir tg-s3:photos"
-  echo "  rclone copy ./test.jpg tg-s3:photos/"
-  echo "  rclone ls tg-s3:photos/"
+  echo "    rclone mkdir tg-s3:photos"
+  echo "    rclone copy ./test.jpg tg-s3:photos/"
+  echo "    rclone ls tg-s3:photos/"
+  echo ""
+  echo "  常用操作:"
+  echo "    更新代码后重新部署:  git pull && ./deploy.sh"
+  echo "    仅重启服务:          docker compose --profile tunnel restart"
+  echo "    查看日志:            docker compose --profile tunnel logs -f"
+  echo "    停止所有服务:        docker compose --profile tunnel down"
   echo ""
 }
 
@@ -520,44 +556,36 @@ echo "  │   Telegram-backed S3 Storage         │"
 echo "  └─────────────────────────────────────┘"
 echo -e "${NC}"
 
-# 初始化 summary 变量
 TUNNEL_CONFIGURED=0
-
 validate_required
 
-case "$MODE" in
-  cf)
+if [ "$IN_CONTAINER" -eq 1 ]; then
+  # ============================================
+  # 容器内: 仅部署 CF Worker + 配置 tunnel
+  # ============================================
+  deploy_cf
+  setup_tunnel || true
+  print_summary
+  exit 0
+fi
+
+# ============================================
+# 宿主机
+# ============================================
+case "${1:-}" in
+  --vps)
+    # 传统 SSH 模式: 本地 wrangler 部署 Worker + SSH 部署 VPS
     deploy_cf
-    # 尝试创建 tunnel (可选, 失败不阻塞)
-    setup_tunnel || true
+    deploy_vps
     ;;
-  vps)
-    if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
-      warn "Docker 环境下 processor 由 docker compose 管理, 无需单独部署"
-      warn "运行: docker compose up -d processor"
-      warn "如需 tunnel: docker compose --profile tunnel up -d"
+  *)
+    # 自动检测
+    if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
+      # Docker 全自动编排
+      deploy_docker
     else
-      deploy_vps
-    fi
-    ;;
-  all)
-    deploy_cf
-    if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
-      # Docker 环境: processor 是本地 compose 服务
-      # 尝试创建 tunnel (可选, 失败不阻塞)
-      setup_tunnel || true
-      log "CF Worker 部署完成。processor 由 docker compose 管理"
-      if [ "$TUNNEL_CONFIGURED" -eq 1 ]; then
-        log "启动所有服务: docker compose --profile tunnel up -d"
-      else
-        log "deploy 容器退出后, docker compose 会自动启动 processor"
-      fi
-    elif [ -n "${VPS_SSH:-}" ]; then
-      deploy_vps
-    else
-      warn "VPS_SSH 未设置, 跳过 VPS 部署"
-      warn "如需大文件和媒体处理功能, 请在 .env 中配置 VPS_SSH 后运行:"
-      warn "  ./deploy.sh --vps-only"
+      # 无 Docker: 本地 wrangler 部署 Worker
+      deploy_cf
     fi
     ;;
 esac

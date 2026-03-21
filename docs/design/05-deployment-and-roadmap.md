@@ -11,7 +11,7 @@
   - Telegram Bot Token
   - 一个 TG 私有频道/群组（Bot 为管理员）
 
-部署方式: ./deploy.sh --cf-only (一键自动化)
+部署方式: ./deploy.sh (一键自动化, 自动检测环境)
   自动完成: D1 创建 + R2 Bucket 创建 + Schema 初始化 + Secrets 配置 + Worker 部署
 
 部署内容:
@@ -38,8 +38,8 @@
   - 上述所有 +
   - 1x VPS (Hetzner CAX11 ARM, 2C4G, ~$4/月)
 
-部署方式: ./deploy.sh --all (一键自动化 CF + VPS)
-  VPS: 自动 SSH 上传 + Docker 构建 + 启动 + 健康检查
+部署方式: ./deploy.sh (一键自动化 CF + VPS, 自动检测 Docker)
+  Docker 模式: 构建镜像 + 部署 Worker + 配置 Tunnel + 启动服务
 
 VPS 上运行:
   - Local Telegram Bot API Server (Docker)
@@ -72,23 +72,56 @@ VPS 上运行:
 
 ## 二、VPS 部署详情
 
-### Docker Compose
+### 一键部署
+
+所有部署操作通过 `./deploy.sh` 一条命令完成，脚本自动检测运行环境:
+
+| 环境 | 行为 |
+|------|------|
+| 宿主机 + Docker | 构建镜像 + 部署 CF Worker + 配置 Tunnel + 启动服务 |
+| 宿主机 + 无 Docker | 使用本地 wrangler 部署 CF Worker |
+| Docker 容器内 | 仅部署 CF Worker (由宿主机编排调用) |
+
+```bash
+# 首次部署 (一条命令)
+cp .env.example .env
+vim .env     # 填写 TG_BOT_TOKEN, DEFAULT_CHAT_ID, CLOUDFLARE_API_TOKEN
+./deploy.sh
+
+# 更新代码后重新部署 (一条命令)
+git pull && ./deploy.sh
+
+# 仅重启服务 (不重新部署 Worker)
+docker compose --profile tunnel restart
+
+# 停止所有服务
+docker compose --profile tunnel down
+
+# 查看日志
+docker compose --profile tunnel logs -f
+```
+
+### Docker Compose 架构
 
 ```yaml
 services:
-  # 一次性部署服务: 将 CF Worker 推送到 Cloudflare，运行后退出
+  # CF Worker 部署服务 (一次性, 由 ./deploy.sh 编排调用)
+  # profiles: [deploy] -- 不会随 docker compose up 自动启动
   deploy:
     build:
       context: .
       dockerfile: Dockerfile.deploy
     env_file: .env
+    volumes:
+      - ./.env:/app/.env    # 挂载 .env, 容器内修改可持久化
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CLOUDFLARE_ACCOUNT_ID=${CF_ACCOUNT_ID:-}
     restart: "no"
+    profiles: [deploy]
 
   # 媒体处理 + 大文件代理服务 (常驻)
-  # Tunnel 和 Caddy 均通过 Docker 内部网络访问, 无需暴露宿主机端口
+  # Tunnel 通过 Docker 内部网络访问, 无需暴露宿主机端口
   processor:
     build: ./processor
     restart: unless-stopped
@@ -101,56 +134,38 @@ services:
       - TEMP_DIR=/tmp/tg-s3
     volumes:
       - processor-data:/tmp/tg-s3
-    deploy:
-      resources:
-        limits:
-          memory: 2G
 
-  # Optional: Telegram Local Bot API Server (2GB 文件支持)
-  # telegram-bot-api:
-  #   image: aiogram/telegram-bot-api:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     - TELEGRAM_API_ID=${TELEGRAM_API_ID}
-  #     - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
-  #     - TELEGRAM_LOCAL=1
-  #   ports:
-  #     - "127.0.0.1:8081:8081"
-  #   volumes:
-  #     - tg-bot-api-data:/var/lib/telegram-bot-api
+  # Cloudflare Tunnel (profiles: [tunnel])
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    depends_on: [processor]
+    profiles: [tunnel]
 
 volumes:
   processor-data:
-  # tg-bot-api-data:
 ```
 
-> 注: `deploy` 服务为一次性服务 (`restart: "no"`)，`docker compose up -d` 后自动部署 Worker 并退出。
-> `processor` 为常驻服务，处理大文件和媒体请求。
-> `telegram-bot-api` 为可选服务，需要 2GB 文件支持时取消注释并配置 `TELEGRAM_API_ID` / `TELEGRAM_API_HASH`。
+### deploy.sh 编排流程 (Docker 模式)
 
-### 部署操作
-
-```bash
-# 首次部署 (使用 Cloudflare Tunnel)
-docker compose --profile tunnel build
-docker compose --profile tunnel up -d
-
-# 更新代码后重新部署
-git pull
-docker compose --profile tunnel build
-docker compose --profile tunnel up -d
-
-# 仅重新部署 CF Worker (不重启 processor)
-docker compose run --rm deploy
-
-# 停止所有服务
-docker compose --profile tunnel down
-
-# 查看日志
-docker compose --profile tunnel logs -f
 ```
-
-> **重要**: 由于 Docker BuildKit 并行构建的兼容性问题，`build` 和 `up` 必须分两步执行，不能直接 `docker compose --profile tunnel up -d --build`。
+./deploy.sh
+  1. 加载 .env, 校验必填项, 自动生成 VPS_SECRET
+  2. 检测到 Docker -> 进入 Docker 编排模式
+  3. 逐个构建镜像 (避免 BuildKit 并行构建 bug)
+     docker compose build deploy
+     docker compose build processor
+  4. 运行 deploy 容器 (部署 CF Worker + 配置 Tunnel)
+     docker compose --profile deploy run --rm -T deploy
+     容器内: deploy_cf() + setup_tunnel()
+     .env 以 volume 挂载, CF_TUNNEL_TOKEN 等自动持久化
+  5. 重新加载 .env, 启动常驻服务
+     docker compose --profile tunnel up -d
+  6. 健康检查 + 打印摘要
+```
 
 ### Caddyfile
 

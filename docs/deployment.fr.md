@@ -63,18 +63,14 @@ Les autres identifiants (cles S3, VPS_SECRET, secret webhook) sont **generes aut
 Deployez :
 
 ```bash
-docker compose up -d
+./deploy.sh
 ```
 
-Cela demarre deux services :
-- **deploy** -- Pousse le Worker vers Cloudflare, initialise le schema D1, genere les secrets automatiquement (s'execute une fois, puis s'arrete)
-- **processor** -- Gere les fichiers volumineux et le traitement multimedia (reste actif en permanence)
+Le script detecte automatiquement l'environnement et effectue les actions appropriees :
+- **Hote avec Docker :** Construit les images, deploie le CF Worker, configure le tunnel (si active), demarre tous les services
+- **Hote sans Docker :** Utilise wrangler local pour deployer le Worker directement
 
-Apres le deploiement, creez des identifiants S3 dans le Mini App Telegram (onglet Keys) pour connecter les clients S3. Verifiez les logs pour le statut :
-
-```bash
-docker compose logs deploy
-```
+Apres le deploiement, creez des identifiants S3 dans le Mini App Telegram (onglet Keys) pour connecter les clients S3.
 
 ### Cloudflare Tunnel (recommande pour VPS)
 
@@ -82,11 +78,7 @@ Cloudflare Tunnel cree une connexion securisee entre le processeur et les CF Wor
 
 **Configuration automatique** (necessite `CF_CUSTOM_DOMAIN` dans `.env`) :
 
-`deploy.sh` cree automatiquement un tunnel et configure le DNS. Le nom d'hote du tunnel sera `vps.<votre-domaine>`. Demarrez avec :
-
-```bash
-docker compose --profile tunnel up -d
-```
+`deploy.sh` cree automatiquement un tunnel et configure le DNS. Le nom d'hote du tunnel sera `vps.<votre-domaine>`. Lancez simplement `./deploy.sh` -- la configuration du tunnel est geree automatiquement lorsque `CF_CUSTOM_DOMAIN` est defini.
 
 **Configuration manuelle** (sans domaine personnalise) :
 
@@ -99,10 +91,10 @@ docker compose --profile tunnel up -d
 CF_TUNNEL_TOKEN=eyJhIjo...
 ```
 
-5. Demarrez avec le profil tunnel :
+5. Lancez le deploiement :
 
 ```bash
-docker compose --profile tunnel up -d
+./deploy.sh
 ```
 
 Le tunnel remplace `VPS_URL` -- le Worker atteint le processeur via le reseau Cloudflare au lieu d'une connexion directe.
@@ -110,11 +102,10 @@ Le tunnel remplace `VPS_URL` -- le Worker atteint le processeur via le reseau Cl
 ### Mise a jour
 
 ```bash
-git pull
-docker compose up -d --build
+git pull && ./deploy.sh
 ```
 
-## Methode 2 : Deploiement manuel
+## Methode 2 : Deploiement manuel (sans Docker)
 
 ### Worker Cloudflare uniquement (niveau Minimal)
 
@@ -123,10 +114,10 @@ npm install
 cp .env.example .env
 # Modifiez .env (seuls TG_BOT_TOKEN et DEFAULT_CHAT_ID sont requis)
 
-./deploy.sh --cf-only
+./deploy.sh
 ```
 
-Le script va :
+Le script detecte automatiquement l'absence de Docker et utilise wrangler local. Il va :
 1. Valider la configuration
 2. Creer la base de donnees D1 et initialiser le schema
 3. Creer le bucket R2 avec la politique de cycle de vie
@@ -136,9 +127,9 @@ Le script va :
 7. Deployer le Worker
 8. Enregistrer le webhook du bot Telegram
 
-### Avec VPS (niveau Standard)
+### Deploiement VPS SSH (mode legacy)
 
-Assurez-vous que votre `.env` contient les parametres VPS :
+Pour deployer le processeur sur un VPS distant via SSH, ajoutez les parametres VPS dans `.env` :
 
 ```bash
 VPS_SSH=user@your-vps-ip
@@ -148,16 +139,10 @@ VPS_URL=https://vps.example.com:3000
 # VPS_SECRET est genere automatiquement s'il n'est pas defini
 ```
 
-Puis deployez le tout :
+Puis deployez :
 
 ```bash
-./deploy.sh --all
-```
-
-Ou deployez le VPS separement :
-
-```bash
-./deploy.sh --vps-only
+./deploy.sh --vps
 ```
 
 Le deploiement VPS va :

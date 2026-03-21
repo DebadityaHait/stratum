@@ -55,36 +55,17 @@ Mini App ───────┤         │                R2 (缓存)
 - 一个 Telegram 群组/超级群组（通过 [@userinfobot](https://t.me/userinfobot) 获取 Chat ID）
 - 一个 [Cloudflare 账户](https://dash.cloudflare.com)
 
-### 方式一：Docker（推荐）
+### 一键部署
 
 ```bash
 git clone https://github.com/gps949/tg-s3.git
 cd tg-s3
 cp .env.example .env
-# 编辑 .env: 仅需 TG_BOT_TOKEN、DEFAULT_CHAT_ID 和 CLOUDFLARE_API_TOKEN
-docker compose up -d
-
-# 使用 Cloudflare Tunnel（推荐，无需开放端口）:
-docker compose --profile tunnel up -d
+# 编辑 .env: 填写 TG_BOT_TOKEN、DEFAULT_CHAT_ID、CLOUDFLARE_API_TOKEN
+./deploy.sh
 ```
 
-`deploy` 服务将 Worker 推送到 Cloudflare 并自动生成密钥。S3 凭据可在 Telegram Mini App 的 Keys 标签页中按需创建。
-
-### 方式二：手动部署
-
-```bash
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
-npm install
-cp .env.example .env
-# 编辑 .env: 仅需 TG_BOT_TOKEN 和 DEFAULT_CHAT_ID
-
-# 部署 Cloudflare Worker（自动生成所有密钥）
-./deploy.sh --cf-only
-
-# （可选）部署 VPS 处理器
-./deploy.sh --vps-only
-```
+`deploy.sh` 自动检测运行环境：有 Docker 时自动构建镜像、部署 CF Worker、配置 Cloudflare Tunnel 并启动所有服务；无 Docker 时使用本地 wrangler 部署。S3 凭据可在 Telegram Mini App 的 Keys 标签页中创建。
 
 ### 验证
 

@@ -63,18 +63,14 @@ CF_CUSTOM_DOMAIN=s3.example.com
 デプロイ：
 
 ```bash
-docker compose up -d
+./deploy.sh
 ```
 
-2 つのサービスが起動します：
-- **deploy** -- Worker を Cloudflare にプッシュ、D1 スキーマを初期化、シークレットを自動生成（1 回実行後に終了）
-- **processor** -- 大容量ファイルとメディア処理を担当（常駐）
+スクリプトが環境を自動検出し、適切な処理を実行します：
+- **ホストに Docker がある場合：** イメージをビルドし、CF Worker をデプロイ、トンネルを設定（有効時）、全サービスを起動
+- **ホストに Docker がない場合：** ローカルの wrangler で Worker を直接デプロイ
 
-デプロイ後、Telegram Mini App の Keys タブで S3 認証情報を作成して S3 クライアントを接続してください。デプロイログでステータスを確認：
-
-```bash
-docker compose logs deploy
-```
+デプロイ後、Telegram Mini App の Keys タブで S3 認証情報を作成して S3 クライアントを接続してください。
 
 ### Cloudflare Tunnel（VPS 向け推奨）
 
@@ -82,11 +78,7 @@ Cloudflare Tunnel はプロセッサと CF Worker 間に安全な接続を確立
 
 **自動設定**（`.env` に `CF_CUSTOM_DOMAIN` が必要）：
 
-`deploy.sh` がトンネルを自動作成し DNS を設定します。トンネルのホスト名は `vps.<カスタムドメイン>` になります。起動：
-
-```bash
-docker compose --profile tunnel up -d
-```
+`deploy.sh` がトンネルを自動作成し DNS を設定します。トンネルのホスト名は `vps.<カスタムドメイン>` になります。`./deploy.sh` を実行するだけで、`CF_CUSTOM_DOMAIN` が設定されていればトンネルは自動的に構成されます。
 
 **手動設定**（カスタムドメインなし）：
 
@@ -99,10 +91,10 @@ docker compose --profile tunnel up -d
 CF_TUNNEL_TOKEN=eyJhIjo...
 ```
 
-5. tunnel プロファイルで起動：
+5. デプロイを実行：
 
 ```bash
-docker compose --profile tunnel up -d
+./deploy.sh
 ```
 
 トンネルは `VPS_URL` の代わりとなり、Worker は直接接続ではなく Cloudflare ネットワーク経由でプロセッサにアクセスします。
@@ -110,11 +102,10 @@ docker compose --profile tunnel up -d
 ### アップデート
 
 ```bash
-git pull
-docker compose up -d --build
+git pull && ./deploy.sh
 ```
 
-## 方法 2: 手動デプロイ
+## 方法 2: 手動デプロイ（Docker なし）
 
 ### Cloudflare Worker のみ（Minimal 構成）
 
@@ -123,10 +114,10 @@ npm install
 cp .env.example .env
 # .env を編集（TG_BOT_TOKEN と DEFAULT_CHAT_ID のみ必須）
 
-./deploy.sh --cf-only
+./deploy.sh
 ```
 
-スクリプトは以下を実行します：
+スクリプトは Docker が利用できないことを自動検出し、ローカルの wrangler を使用します。以下を実行します：
 1. 設定の検証
 2. D1 データベースの作成とスキーマ初期化
 3. R2 バケットの作成とライフサイクルポリシーの設定
@@ -136,9 +127,9 @@ cp .env.example .env
 7. Worker のデプロイ
 8. Telegram Bot Webhook の登録
 
-### VPS 併用（Standard 構成）
+### レガシー VPS SSH デプロイ
 
-`.env` に VPS 設定を追加してください：
+SSH 経由でリモート VPS にプロセッサをデプロイする場合、`.env` に VPS 設定を追加してください：
 
 ```bash
 VPS_SSH=user@your-vps-ip
@@ -148,16 +139,10 @@ VPS_URL=https://vps.example.com:3000
 # VPS_SECRET は未設定時に自動生成
 ```
 
-すべてをデプロイ：
+デプロイ：
 
 ```bash
-./deploy.sh --all
-```
-
-VPS のみを個別にデプロイ：
-
-```bash
-./deploy.sh --vps-only
+./deploy.sh --vps
 ```
 
 VPS デプロイでは以下が実行されます：

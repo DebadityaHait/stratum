@@ -5,9 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "deploy:all": "./deploy.sh --all",
-    "deploy:cf": "./deploy.sh --cf-only",
-    "deploy:vps": "./deploy.sh --vps-only",
+    "deploy:docker": "./deploy.sh",
+    "deploy:vps": "./deploy.sh --vps",
     "db:init": "wrangler d1 execute tg-s3-db --local --file=src/storage/schema.sql",
     "db:init:remote": "wrangler d1 execute tg-s3-db --remote --file=src/storage/schema.sql"
   },
