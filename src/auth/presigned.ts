@@ -17,8 +17,7 @@ export async function generatePresignedUrl(params: {
   const { bucket, key, method = 'GET', expiresIn: rawExpires = 3600, env, baseUrl } = params;
 
   const store = new MetadataStore(env);
-  const creds = await store.listCredentials();
-  const adminCred = creds.find(c => c.is_active && c.permission === 'admin');
+  const adminCred = await store.getActiveAdminCredential();
   if (!adminCred) {
     throw new Error('No admin credential available for presigned URL generation. Create one in Mini App Keys tab.');
   }

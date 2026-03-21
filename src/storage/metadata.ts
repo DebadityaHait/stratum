@@ -698,6 +698,13 @@ export class MetadataStore {
     return r.results;
   }
 
+  async getActiveAdminCredential(): Promise<CredentialRow | null> {
+    const r = await this.db.prepare(
+      'SELECT * FROM credentials WHERE is_active = 1 AND permission = ? LIMIT 1'
+    ).bind('admin').first<CredentialRow>();
+    return r ?? null;
+  }
+
   async createCredential(cred: { accessKeyId: string; secretAccessKey: string; name: string; buckets: string; permission: string }): Promise<void> {
     await this.db.prepare(
       'INSERT INTO credentials (access_key_id, secret_access_key, name, buckets, permission) VALUES (?, ?, ?, ?, ?)'

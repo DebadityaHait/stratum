@@ -48,7 +48,7 @@ export async function handleCopyObject(s3: S3Request, env: Env, ctx: ExecutionCo
   // Conditional copy headers (S3 precedence: if-match overrides if-unmodified-since,
   // if-none-match overrides if-modified-since)
   const copyIfMatch = s3.headers.get('x-amz-copy-source-if-match');
-  if (copyIfMatch && !etagMatches(copyIfMatch, srcObj.etag)) {
+  if (copyIfMatch && !etagMatches(copyIfMatch, srcObj.etag, true)) {
     return errorResponse(412, 'PreconditionFailed', 'At least one of the pre-conditions you specified did not hold.');
   }
   if (!copyIfMatch) {

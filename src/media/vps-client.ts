@@ -131,39 +131,43 @@ export class VpsClient {
   }
 
   async proxyPut(data: ArrayBuffer, chatId: string, filename: string, contentType: string, messageThreadId?: number | null): Promise<Response> {
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('filename', filename);
-    form.append('content_type', contentType);
-    form.append('file', new Blob([data], { type: contentType }), filename);
-    if (messageThreadId) form.append('message_thread_id', messageThreadId.toString());
-    const res = await fetch(`${this.baseUrl}/api/proxy/put`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${this.secret}` },
-      body: form,
-      signal: AbortSignal.timeout(VPS_PROXY_TIMEOUT),
+    return this.withRetry(async () => {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('filename', filename);
+      form.append('content_type', contentType);
+      form.append('file', new Blob([data], { type: contentType }), filename);
+      if (messageThreadId) form.append('message_thread_id', messageThreadId.toString());
+      const res = await fetch(`${this.baseUrl}/api/proxy/put`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.secret}` },
+        body: form,
+        signal: AbortSignal.timeout(VPS_PROXY_TIMEOUT),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`VPS proxy put failed (${res.status}): ${text}`);
+      }
+      return res;
     });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`VPS proxy put failed (${res.status}): ${text}`);
-    }
-    return res;
   }
 
   async consolidate(fileIds: string[], chatId: string, filename: string, contentType: string, messageThreadId?: number | null): Promise<Response> {
-    const res = await fetch(`${this.baseUrl}/api/proxy/consolidate`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify({
-        file_ids: fileIds,
-        chat_id: chatId,
-        filename,
-        content_type: contentType,
-        message_thread_id: messageThreadId ?? undefined,
-      }),
-      signal: AbortSignal.timeout(VPS_PROXY_TIMEOUT),
+    return this.withRetry(async () => {
+      const res = await fetch(`${this.baseUrl}/api/proxy/consolidate`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({
+          file_ids: fileIds,
+          chat_id: chatId,
+          filename,
+          content_type: contentType,
+          message_thread_id: messageThreadId ?? undefined,
+        }),
+        signal: AbortSignal.timeout(VPS_PROXY_TIMEOUT),
+      });
+      if (!res.ok) throw new Error(`VPS consolidate failed: ${res.status}`);
+      return res;
     });
-    if (!res.ok) throw new Error(`VPS consolidate failed: ${res.status}`);
-    return res;
   }
 }

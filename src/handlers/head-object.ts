@@ -12,7 +12,7 @@ export async function handleHeadObject(s3: S3Request, env: Env): Promise<Respons
 
   // Conditional: If-Match (412 if ETag doesn't match)
   const ifMatch = s3.headers.get('if-match');
-  if (ifMatch && !etagMatches(ifMatch, obj.etag)) {
+  if (ifMatch && !etagMatches(ifMatch, obj.etag, true)) {
     return errorResponse(412, 'PreconditionFailed', 'At least one of the pre-conditions you specified did not hold.');
   }
 

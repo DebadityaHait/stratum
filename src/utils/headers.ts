@@ -69,8 +69,13 @@ function stripEtagQuotes(etag: string): string {
 
 // Check if an If-Match/If-None-Match header value matches an ETag.
 // Handles wildcard *, comma-separated lists, and quoted/weak ETags.
-export function etagMatches(header: string, etag: string): boolean {
+// When strong=true (for If-Match), weak ETags (W/"...") in the header are rejected per RFC 7232.
+export function etagMatches(header: string, etag: string, strong = false): boolean {
   if (header.trim() === '*') return true;
   const stripped = stripEtagQuotes(etag);
-  return header.split(',').some(e => stripEtagQuotes(e) === stripped);
+  return header.split(',').some(e => {
+    const trimmed = e.trim();
+    if (strong && trimmed.startsWith('W/')) return false;
+    return stripEtagQuotes(trimmed) === stripped;
+  });
 }
