@@ -343,10 +343,10 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 | PUT | `/api/miniapp/upload?bucket=&key=` | 直接上传文件 (body 为文件内容，内部调用 PutObject) |
 | GET | `/api/miniapp/download?bucket=&key=` | 直接下载文件 (内部调用 GetObject，支持 `?auth=` 查询参数认证) |
 | POST | `/api/miniapp/presign` | 生成预签名 URL，仅用于"复制预签名链接"功能 (body: `{bucket, key, method?, expiresIn?}`) |
-| GET | `/api/miniapp/credentials?bucket=` | 列出凭证 (secret_access_key 脱敏) |
+| GET | `/api/miniapp/credentials` | 列出凭证 (secret_access_key 脱敏) |
 | POST | `/api/miniapp/credential` | 创建凭证 (body: `{buckets?, permission?}`) |
-| PATCH | `/api/miniapp/credential` | 更新凭证 (body: `{id, buckets?, permission?}`) |
-| DELETE | `/api/miniapp/credential?id=` | 删除凭证 |
+| PATCH | `/api/miniapp/credential?accessKeyId=` | 更新凭证 (body: `{name?, buckets?, permission?, is_active?}`) |
+| DELETE | `/api/miniapp/credential?accessKeyId=` | 删除凭证 |
 
 所有端点需认证（Telegram WebApp initData）。认证方式:
 - `Authorization: Bearer <initData>` 请求头 (JS fetch 调用)

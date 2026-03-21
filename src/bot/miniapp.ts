@@ -1180,14 +1180,94 @@ async function loadShares() {
             \${tk.expires_at ? '<br>' + esc(t('expires_prefix')) + new Date(tk.expires_at).toLocaleString() : ' ' + esc(t('permanent_label'))}
             \${tk.password_hash ? '<br>' + esc(t('password_set')) : ''}
           </div>
-          <div style="margin-top:6px">
+          \${tk.note ? '<div style="margin-top:4px;font-size:12px;color:var(--hint);font-style:italic">' + esc(t('share_note_label_display')) + ': ' + esc(tk.note) + '</div>' : ''}
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-sm btn-outline" onclick="copyText('\${escJs(API + '/share/' + tk.token)}')">\${esc(t('copy_link'))}</button>
+            <button class="btn btn-sm btn-outline" onclick="editShare('\${escJs(tk.token)}', '\${escJs(tk.expires_at || '')}', \${tk.password_hash ? 'true' : 'false'}, \${tk.max_downloads !== null ? tk.max_downloads : 'null'}, '\${escJs(tk.note || '')}')">\${esc(t('edit'))}</button>
           </div>
         </div>\`;
     }).join('');
   } catch (e) {
     if (!authOk) return;
     el.innerHTML = '<div class="empty">' + esc(t('load_failed', e.message)) + '<br><br><button class="btn btn-sm btn-outline" onclick="loadShares()">' + esc(t('retry')) + '</button></div>';
+  }
+}
+
+function editShare(token, expiresAt, hasPassword, maxDownloads, note) {
+  const pwAction = hasPassword ? 'keep' : 'none';
+  showModal(\`
+    <span class="modal-close" role="button" aria-label="Close" onclick="closeModal()">&times;</span>
+    <h3>\${esc(t('edit_share'))}</h3>
+    <div class="form-group">
+      <label>\${esc(t('expiry_label'))}</label>
+      <select id="editShareExpiry">
+        <option value="keep">\${esc(t('share_expiry_keep'))}</option>
+        <option value="clear">\${esc(t('share_expiry_clear'))}</option>
+        <option value="3600">\${esc(t('hour_1'))}</option>
+        <option value="86400">\${esc(t('day_1'))}</option>
+        <option value="604800">\${esc(t('days_7'))}</option>
+        <option value="2592000">\${esc(t('days_30'))}</option>
+      </select>
+      \${expiresAt ? '<div style="font-size:11px;color:var(--hint);margin-top:2px">' + esc(t('expires_prefix')) + new Date(expiresAt).toLocaleString() + '</div>' : '<div style="font-size:11px;color:var(--hint);margin-top:2px">' + esc(t('permanent_label')) + '</div>'}
+    </div>
+    <div class="form-group">
+      <label>\${esc(t('password_optional'))}</label>
+      <select id="editSharePwAction" onchange="document.getElementById('editSharePwInput').style.display = this.value === 'new' ? '' : 'none'">
+        \${hasPassword
+          ? '<option value="keep">' + esc(t('share_password_keep')) + '</option><option value="clear">' + esc(t('share_password_clear')) + '</option><option value="new">' + esc(t('share_password_new')) + '</option>'
+          : '<option value="none">' + esc(t('share_password_keep')) + '</option><option value="new">' + esc(t('share_password_new')) + '</option>'}
+      </select>
+      <input type="text" id="editSharePwInput" style="display:none;margin-top:4px" placeholder="\${esc(t('password_placeholder'))}">
+    </div>
+    <div class="form-group">
+      <label>\${esc(t('max_downloads_optional'))}</label>
+      <select id="editShareMaxDlAction" onchange="document.getElementById('editShareMaxDlInput').style.display = this.value === 'set' ? '' : 'none'">
+        <option value="keep">\${esc(t('share_max_dl_keep'))}</option>
+        <option value="clear">\${esc(t('share_max_dl_clear'))}</option>
+        <option value="set">\${maxDownloads !== null ? esc(t('share_max_dl_keep')) + ' (' + maxDownloads + ')' : esc(t('unlimited_hint'))}</option>
+      </select>
+      <input type="number" id="editShareMaxDlInput" min="1" style="display:none;margin-top:4px" placeholder="\${esc(t('unlimited_hint'))}" \${maxDownloads !== null ? 'value="' + maxDownloads + '"' : ''}>
+    </div>
+    <div class="form-group">
+      <label>\${esc(t('share_note_label'))}</label>
+      <input type="text" id="editShareNote" placeholder="\${esc(t('share_note_placeholder'))}" value="\${esc(note)}">
+    </div>
+    <button class="btn" style="width:100%;margin-top:8px" id="editShareBtn" onclick="doEditShare('\${escJs(token)}')">\${esc(t('save'))}</button>
+  \`);
+}
+
+async function doEditShare(token) {
+  const btn = document.getElementById('editShareBtn');
+  if (btn) { btn.disabled = true; btn.textContent = t('saving'); }
+  const body = {};
+  const expiryVal = document.getElementById('editShareExpiry').value;
+  if (expiryVal === 'clear') body.expiresIn = 0;
+  else if (expiryVal !== 'keep') body.expiresIn = parseInt(expiryVal);
+  const pwAction = document.getElementById('editSharePwAction').value;
+  if (pwAction === 'clear') body.password = '';
+  else if (pwAction === 'new') {
+    const pw = document.getElementById('editSharePwInput').value;
+    if (pw) body.password = pw;
+  }
+  const maxDlAction = document.getElementById('editShareMaxDlAction').value;
+  if (maxDlAction === 'clear') body.maxDownloads = 0;
+  else if (maxDlAction === 'set') {
+    const md = parseInt(document.getElementById('editShareMaxDlInput').value);
+    if (md >= 1) body.maxDownloads = md;
+  }
+  const note = document.getElementById('editShareNote').value;
+  body.note = note || '';
+  try {
+    await apiFetch('/api/shares/' + encodeURIComponent(token), {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    closeModal();
+    toast(t('share_updated'));
+    loadShares();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = t('save'); }
+    toast(t('share_update_failed', e.message));
   }
 }
 
@@ -1474,9 +1554,9 @@ async function doCreateKey() {
 
 async function toggleKeyStatus(accessKeyId, newStatus) {
   try {
-    await apiFetch('/api/miniapp/credential', {
+    await apiFetch('/api/miniapp/credential?accessKeyId=' + encodeURIComponent(accessKeyId), {
       method: 'PATCH',
-      body: JSON.stringify({ access_key_id: accessKeyId, status: newStatus }),
+      body: JSON.stringify({ is_active: newStatus }),
     });
     toast(t('key_status_updated'));
     loadKeys();
@@ -1500,7 +1580,7 @@ function confirmDeleteKey(accessKeyId, name) {
 async function doDeleteKey(accessKeyId) {
   closeModal();
   try {
-    await apiFetch('/api/miniapp/credential?access_key_id=' + encodeURIComponent(accessKeyId), { method: 'DELETE' });
+    await apiFetch('/api/miniapp/credential?accessKeyId=' + encodeURIComponent(accessKeyId), { method: 'DELETE' });
     toast(t('deleted'));
     loadKeys();
   } catch (e) {

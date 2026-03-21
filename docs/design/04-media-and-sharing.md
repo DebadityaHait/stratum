@@ -388,7 +388,7 @@ GET /share/{token}
 - **暗色模式**: `@media(prefers-color-scheme:dark)` 自动适配
 - **口令页面**: 支持 POST 表单提交（`method="POST"`）和 GET query param（`?password=xxx`）两种方式
 - **口令暴力破解防护**: 同一 token+IP 失败 5 次后锁定 15 分钟，返回 429 + Retry-After；成功验证后清除记录；Cron 清理过期记录
-- **过期页面**: 区分 expired / max_downloads / not_found 三种状态，显示不同提示文案
+- **过期页面**: 区分 expired / max_downloads / download_failed / not_found 四种状态，显示不同提示文案
 
 ### S3 预签名 URL
 
