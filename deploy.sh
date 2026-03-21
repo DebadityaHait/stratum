@@ -131,6 +131,12 @@ if [ -z "${VPS_SECRET:-}" ]; then
   log "自动生成 VPS_SECRET (已写入 .env)"
 fi
 
+if [ -z "${SSE_MASTER_KEY:-}" ]; then
+  SSE_MASTER_KEY="$(openssl rand -base64 32)"
+  persist_env SSE_MASTER_KEY "$SSE_MASTER_KEY"
+  log "自动生成 SSE_MASTER_KEY (已写入 .env)"
+fi
+
 # ---- 校验必填项 ----
 validate_required() {
   local missing=0
@@ -248,6 +254,9 @@ deploy_cf() {
     echo "$VPS_URL" | npx wrangler secret put VPS_URL 2>&1 || true
   fi
   echo "$VPS_SECRET" | npx wrangler secret put VPS_SECRET 2>&1 || true
+  if [ -n "${SSE_MASTER_KEY:-}" ]; then
+    echo "$SSE_MASTER_KEY" | npx wrangler secret put SSE_MASTER_KEY 2>&1 || true
+  fi
   log "Secrets 配置完成"
 
   # 部署 Worker
