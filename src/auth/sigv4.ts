@@ -58,25 +58,32 @@ export async function verifySignature(request: Request, url: URL, resolve: Crede
       return { status: 403, code: 'SignatureDoesNotMatch', message: `Date in Credential scope does not match YYYYMMDD from ISO-8601 version of date from HTTP: '${dateStr}' vs '${amzDate.slice(0, 8)}'.` };
     }
 
-    const canonicalRequest = await buildCanonicalRequest(request, url, signedHeaders);
-    const crHash = await sha256Hex(new TextEncoder().encode(canonicalRequest).buffer as ArrayBuffer);
     const scope = `${dateStr}/${region}/${service}/aws4_request`;
-    const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${crHash}`;
     const signingKey = await deriveSigningKey(resolved.secretKey, dateStr, region, service);
-    const computed = bufToHex(await hmacSha256(signingKey, stringToSign));
 
-    if (!timingSafeEqual(computed, signature)) {
-      // Temporary debug: include canonical request details to diagnose signature mismatch
-      const debugInfo = JSON.stringify({
-        canonicalRequest,
-        stringToSign,
-        computedSig: computed,
-        providedSig: signature,
-      });
-      return { status: 403, code: 'SignatureDoesNotMatch', message: 'The request signature we calculated does not match the signature you provided. Debug: ' + debugInfo };
+    // Try signature verification, with fallback for Cloudflare Accept-Encoding rewriting.
+    // Cloudflare's edge proxy rewrites the Accept-Encoding header (e.g. "identity" -> "gzip, br")
+    // before it reaches the Worker, breaking SigV4 signatures when accept-encoding is signed.
+    const headerOverrides: Array<Record<string, string>> = [{}];
+    if (signedHeaders.includes('accept-encoding')) {
+      const received = (request.headers.get('accept-encoding') || '').trim();
+      const fallbacks = ['identity', 'gzip', 'gzip, deflate', 'gzip, br', 'gzip, deflate, br', 'gzip, deflate, zstd', 'gzip, br, zstd', 'gzip, deflate, br, zstd'];
+      for (const val of fallbacks) {
+        if (val !== received) headerOverrides.push({ 'accept-encoding': val });
+      }
     }
 
-    return resolved.context; // success
+    for (const overrides of headerOverrides) {
+      const canonicalRequest = await buildCanonicalRequest(request, url, signedHeaders, overrides);
+      const crHash = await sha256Hex(new TextEncoder().encode(canonicalRequest).buffer as ArrayBuffer);
+      const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${crHash}`;
+      const computed = bufToHex(await hmacSha256(signingKey, stringToSign));
+      if (timingSafeEqual(computed, signature)) {
+        return resolved.context; // success
+      }
+    }
+
+    return { status: 403, code: 'SignatureDoesNotMatch', message: 'The request signature we calculated does not match the signature you provided.' };
   } catch {
     return { status: 403, code: 'AccessDenied', message: 'Access Denied.' };
   }
@@ -166,7 +173,7 @@ function parseAuthHeader(header: string): { credential: string; signedHeaders: s
   return { credential: m[1], signedHeaders: m[2], signature: m[3] };
 }
 
-async function buildCanonicalRequest(request: Request, url: URL, signedHeadersStr: string): Promise<string> {
+async function buildCanonicalRequest(request: Request, url: URL, signedHeadersStr: string, headerOverrides: Record<string, string> = {}): Promise<string> {
   const method = request.method;
   // S3 uses single-encoded URI paths (unlike other AWS services which double-encode).
   // url.pathname is already percent-encoded from the HTTP request, so use it directly.
@@ -180,7 +187,7 @@ async function buildCanonicalRequest(request: Request, url: URL, signedHeadersSt
 
   const headersList = signedHeadersStr.split(';');
   const canonicalHeaders = headersList.map(h => {
-    const val = h === 'host' ? url.host : (request.headers.get(h) || '');
+    const val = h === 'host' ? url.host : (headerOverrides[h] ?? request.headers.get(h) ?? '');
     // SigV4 spec: trim leading/trailing whitespace, collapse sequential spaces to single space
     return `${h}:${val.trim().replace(/\s+/g, ' ')}\n`;
   }).join('');
