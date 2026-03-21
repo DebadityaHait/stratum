@@ -80,7 +80,12 @@ export default {
       }
       const authResult = await authenticate(authReq, url, env);
       if (isAuthFailure(authResult)) return addCorsHeaders(errorResponse(authResult.status, authResult.code, authResult.message));
-      return addCorsHeaders(await handleMiniAppApi(request, url, env, ctx));
+      try {
+        return addCorsHeaders(await handleMiniAppApi(request, url, env, ctx));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Internal error';
+        return addCorsHeaders(Response.json({ error: msg }, { status: 500 }));
+      }
     }
 
     // Public bucket access: allow unauthenticated GET/HEAD for public buckets
@@ -956,7 +961,7 @@ function handleCors(): Response {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, HEAD, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, PATCH, HEAD, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Amz-Date, X-Amz-Content-Sha256, X-Amz-Security-Token, X-Amz-Copy-Source, X-Amz-Copy-Source-Range, X-Amz-Metadata-Directive, X-Amz-Copy-Source-If-Match, X-Amz-Copy-Source-If-None-Match, X-Amz-Copy-Source-If-Modified-Since, X-Amz-Copy-Source-If-Unmodified-Since, X-Amz-Acl, X-Amz-Tagging, X-Amz-Server-Side-Encryption, X-Amz-Storage-Class, Content-MD5, Content-Disposition, Content-Encoding, Content-Language, Cache-Control, Expires, Range, If-Match, If-None-Match, If-Modified-Since, If-Unmodified-Since, X-Amz-Meta-*',
       'Access-Control-Expose-Headers': 'ETag, Content-Length, Content-Range, Last-Modified, Accept-Ranges, Content-Disposition, Content-Encoding, x-amz-request-id, x-amz-id-2, x-amz-error-code, x-amz-error-message, x-amz-mp-parts-count, x-amz-bucket-region, x-amz-meta-*, Retry-After, Location, Date',
       'Access-Control-Max-Age': '86400',
