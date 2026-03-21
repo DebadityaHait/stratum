@@ -1,4 +1,6 @@
 import type { Env } from '../types';
+import type { Lang } from '../i18n';
+import { detectBotLang, botT, botStrings, SUPPORTED_LANGS } from '../i18n';
 import { handleBotCommand, resolvePendingDelete, getDefaultBucket, storeCallbackData, resolveCallbackData, listObjectsDirect, listSharesDirect, type BotReply } from './commands';
 import { MetadataStore } from '../storage/metadata';
 import { BOT_API_GETFILE_LIMIT } from '../constants';
@@ -11,7 +13,7 @@ interface TgUpdate {
   message?: {
     message_id: number;
     chat: { id: number; type: string };
-    from?: { id: number; first_name: string; username?: string };
+    from?: { id: number; first_name: string; username?: string; language_code?: string };
     text?: string;
     caption?: string;
     document?: { file_id: string; file_unique_id: string; file_name?: string; file_size?: number; mime_type?: string };
@@ -22,7 +24,7 @@ interface TgUpdate {
   };
   callback_query?: {
     id: string;
-    from: { id: number };
+    from: { id: number; language_code?: string };
     message?: { message_id: number; chat: { id: number } };
     data?: string;
   };
@@ -41,13 +43,14 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
 
   const msg = update.message;
   const chatId = msg.chat.id.toString();
+  const lang = detectBotLang(msg.from?.language_code);
 
   // Only process commands from private chats (not from channels/groups)
   if (msg.chat.type !== 'private') return new Response('ok');
 
   if (msg.text && msg.text.startsWith('/')) {
     const baseUrl = new URL(request.url).origin;
-    const response = await handleBotCommand(msg.text, chatId, env, baseUrl);
+    const response = await handleBotCommand(msg.text, chatId, env, baseUrl, lang);
     if (response) {
       if (typeof response === 'string') {
         await sendMessage(chatId, response, env);
@@ -65,8 +68,7 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
   // Handle file uploads (document, photo, video, audio)
   const file = extractFileInfo(msg);
   if (file) {
-    const baseUrl = new URL(request.url).origin;
-    const result = await handleFileUpload(file, chatId, env);
+    const result = await handleFileUpload(file, chatId, lang, env);
     if (result.keyboard) {
       await sendMessageWithKeyboard(chatId, result.text, result.keyboard, env);
     } else {
@@ -77,10 +79,10 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
 
   // Non-command text or unsupported message types (sticker, location, etc.)
   if (!msg.text) {
-    await sendMessage(chatId, '不支持此消息类型，请发送文件、图片、视频、音频或语音。\n输入 /help 查看帮助。', env);
+    await sendMessage(chatId, botT(lang, 'unsupported_type'), env);
   } else {
     // Plain text that's not a command
-    await sendMessage(chatId, '发送文件给我即可上传，或输入 /help 查看命令列表。', env);
+    await sendMessage(chatId, botT(lang, 'send_file_hint'), env);
   }
 
   return new Response('ok');
@@ -93,6 +95,7 @@ async function handleCallbackQuery(
   const chatId = cq.message?.chat.id.toString();
   const messageId = cq.message?.message_id;
   if (!chatId || !messageId) return;
+  const lang = detectBotLang(cq.from.language_code);
 
   // Acknowledge callback immediately
   await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/answerCallbackQuery`, {
@@ -106,24 +109,24 @@ async function handleCallbackQuery(
     const shortId = data.slice(8);
     const target = resolvePendingDelete(shortId);
     if (!target) {
-      await editMessage(chatId, messageId, '确认已过期，请重新操作。', env);
+      await editMessage(chatId, messageId, botT(lang, 'confirm_expired'), env);
       return;
     }
     const { bucket, key } = target;
 
-    // 撤销分享流程（bucket 以 __revoke__: 前缀标识）
+    // Revoke share flow (bucket prefixed with __revoke__:)
     if (bucket.startsWith('__revoke__:')) {
       const revokeToken = bucket.slice('__revoke__:'.length);
       const store = new MetadataStore(env);
       await store.deleteShareToken(revokeToken);
-      await editMessage(chatId, messageId, `已撤销分享: ${escHtml(key)}`, env);
+      await editMessage(chatId, messageId, botT(lang, 'share_revoked', escHtml(key)), env);
       return;
     }
 
     const store = new MetadataStore(env);
     const obj = await store.getObject(bucket, key);
     if (!obj) {
-      await editMessage(chatId, messageId, '文件已不存在。', env);
+      await editMessage(chatId, messageId, botT(lang, 'file_gone'), env);
       return;
     }
 
@@ -133,51 +136,48 @@ async function handleCallbackQuery(
       ? (env.WORKER_URL.startsWith('http') ? env.WORKER_URL : `https://${env.WORKER_URL}`)
       : '';
     await cleanupDeletedObject(bucket, key, obj, baseUrl, env, store);
-    await editMessage(chatId, messageId, `已删除: ${escHtml(key)} (${formatSize(obj.size)})`, env);
+    await editMessage(chatId, messageId, botT(lang, 'deleted', escHtml(key), formatSize(obj.size)), env);
 
   } else if (data.startsWith('del_no:')) {
     // Also clean up the pending entry
     const shortId = data.slice(7);
     resolvePendingDelete(shortId);
-    await editMessage(chatId, messageId, '已取消删除。', env);
+    await editMessage(chatId, messageId, botT(lang, 'delete_cancelled'), env);
 
   } else if (data.startsWith('share:')) {
-    // Quick share from upload success keyboard (resolved via shortId)
-    // Directly create share instead of routing through command parser,
-    // because keys with spaces would be split incorrectly by handleBotCommand.
+    // Quick share from upload success keyboard
     const resolved = resolveCallbackData(data.slice(6));
-    if (!resolved) { await editMessage(chatId, messageId, '操作已过期，请重新上传。', env); return; }
+    if (!resolved) { await editMessage(chatId, messageId, botT(lang, 'callback_expired'), env); return; }
     const nlIdx = resolved.indexOf('\n');
-    if (nlIdx < 0) { await editMessage(chatId, messageId, '操作失败: 无效的回调数据。', env); return; }
+    if (nlIdx < 0) { await editMessage(chatId, messageId, botT(lang, 'callback_invalid'), env); return; }
     const bucket = resolved.slice(0, nlIdx);
     const key = resolved.slice(nlIdx + 1);
     const store = new MetadataStore(env);
     const obj = await store.getObject(bucket, key);
-    if (!obj) { await editMessage(chatId, messageId, '文件不存在。', env); return; }
+    if (!obj) { await editMessage(chatId, messageId, botT(lang, 'file_not_found'), env); return; }
     const { createShareToken } = await import('../sharing/tokens');
     const share = await createShareToken({ bucket, key }, env);
     const baseUrl = env.WORKER_URL ? (env.WORKER_URL.startsWith('http') ? env.WORKER_URL : `https://${env.WORKER_URL}`) : undefined;
     const shareUrl = baseUrl ? `${baseUrl}/share/${share.token}` : `/share/${share.token}`;
-    await editMessage(chatId, messageId, `<b>分享已创建</b>\nToken: <code>${share.token}</code>\n永久有效\n\n分享链接:\n${shareUrl}`, env);
+    await editMessage(chatId, messageId, botT(lang, 'share_created_quick', share.token, shareUrl), env);
 
   } else if (data.startsWith('info:')) {
-    // Quick info from upload success keyboard — directly query DB to preserve
-    // keys with consecutive whitespace (bypasses command parser split(/\s+/))
+    // Quick info from upload success keyboard
     const resolved = resolveCallbackData(data.slice(5));
-    if (!resolved) { await editMessage(chatId, messageId, '操作已过期，请重新上传。', env); return; }
+    if (!resolved) { await editMessage(chatId, messageId, botT(lang, 'callback_expired'), env); return; }
     const nlIdx = resolved.indexOf('\n');
-    if (nlIdx < 0) { await editMessage(chatId, messageId, '操作失败: 无效的回调数据。', env); return; }
+    if (nlIdx < 0) { await editMessage(chatId, messageId, botT(lang, 'callback_invalid'), env); return; }
     const bucket = resolved.slice(0, nlIdx);
     const key = resolved.slice(nlIdx + 1);
     const store = new MetadataStore(env);
     const obj = await store.getObject(bucket, key);
-    if (!obj) { await editMessage(chatId, messageId, '文件不存在。', env); return; }
-    const text = `<b>文件信息</b>\n名称: ${escHtml(obj.key)}\nBucket: ${escHtml(obj.bucket)}\n大小: ${formatSize(obj.size)}\n类型: ${escHtml(obj.content_type)}\nETag: ${escHtml(obj.etag)}\n修改时间: ${obj.last_modified}`;
-    await editMessage(chatId, messageId, text, env);
+    if (!obj) { await editMessage(chatId, messageId, botT(lang, 'file_not_found'), env); return; }
+    await editMessage(chatId, messageId, botT(lang, 'file_info_quick',
+      escHtml(obj.key), escHtml(obj.bucket), formatSize(obj.size),
+      escHtml(obj.content_type), escHtml(obj.etag), obj.last_modified), env);
 
   } else if (data.startsWith('ls:')) {
-    // Inline keyboard pagination — call listObjectsDirect with structured params
-    // to avoid command parser collapsing empty prefix (page misinterpreted as prefix)
+    // Inline keyboard pagination
     const resolved = resolveCallbackData(data.slice(3));
     if (!resolved) return;
     const parts = resolved.split('\n');
@@ -185,7 +185,7 @@ async function handleCallbackQuery(
     const bucket = parts[0];
     const prefix = parts[1];
     const page = parseInt(parts[2], 10);
-    const response = await listObjectsDirect(bucket, prefix, page, env);
+    const response = await listObjectsDirect(bucket, prefix, page, env, lang);
     if (typeof response === 'string') {
       await editMessage(chatId, messageId, response, env);
     } else {
@@ -200,7 +200,7 @@ async function handleCallbackQuery(
     const bucket = parts[0] || undefined;
     const page = parseInt(parts[1], 10);
     const baseUrl = env.WORKER_URL || undefined;
-    const response = await listSharesDirect(bucket, page, env, baseUrl);
+    const response = await listSharesDirect(bucket, page, env, baseUrl, lang);
     if (typeof response === 'string') {
       await editMessage(chatId, messageId, response, env);
     } else {
@@ -274,11 +274,11 @@ interface UploadResponse {
   keyboard?: Array<Array<{ text: string; callback_data?: string; web_app?: { url: string } }>>;
 }
 
-async function handleFileUpload(file: FileInfo, chatId: string, env: Env): Promise<UploadResponse> {
+async function handleFileUpload(file: FileInfo, chatId: string, lang: Lang, env: Env): Promise<UploadResponse> {
   const store = new MetadataStore(env);
   const buckets = await store.listBuckets();
   if (buckets.length === 0) {
-    return { text: '请先创建一个 Bucket 再上传文件。可通过 S3 API 或 Mini App 创建。' };
+    return { text: botT(lang, 'no_bucket') };
   }
 
   // Use user's preferred bucket, or fall back to the first bucket
@@ -287,13 +287,13 @@ async function handleFileUpload(file: FileInfo, chatId: string, env: Env): Promi
 
   // Size precheck: reject files >20MB when VPS is not configured (can't be downloaded via S3 API)
   if (file.fileSize > BOT_API_GETFILE_LIMIT && !env.VPS_URL) {
-    return { text: '⚠️ 文件超过 20MB 且未配置 VPS，无法通过 S3 API 下载，已拒绝记录。\n如需支持大文件，请配置 VPS_URL。' };
+    return { text: botT(lang, 'file_too_large') };
   }
 
   // Check if the same file content already exists by tg_file_unique_id (content dedup)
   const dupByUid = await store.findByFileUniqueId(file.fileUniqueId);
   if (dupByUid) {
-    return { text: `文件已存在（内容重复）:\n📄 ${escHtml(dupByUid.key)}\nBucket: ${escHtml(dupByUid.bucket)}` };
+    return { text: botT(lang, 'file_duplicate', escHtml(dupByUid.key), escHtml(dupByUid.bucket)) };
   }
 
   // Generate a unique key if file with same name exists
@@ -336,16 +336,16 @@ async function handleFileUpload(file: FileInfo, chatId: string, env: Env): Promi
     });
 
     const sizeStr = formatSize(file.fileSize);
-    const renamed = key !== file.fileName ? `\n(原名 ${escHtml(file.fileName)} 已存在，已自动重命名)` : '';
+    const renamed = key !== file.fileName ? botT(lang, 'upload_renamed', escHtml(file.fileName)) : '';
     return {
-      text: `已上传到 <b>${escHtml(bucket.name)}</b>\n文件: ${escHtml(key)}\n大小: ${sizeStr}${renamed}`,
+      text: botT(lang, 'uploaded', escHtml(bucket.name), escHtml(key), sizeStr, renamed),
       keyboard: [[
-        { text: '分享', callback_data: `share:${storeCallbackData(`${bucket.name}\n${key}`)}` },
-        { text: '详情', callback_data: `info:${storeCallbackData(`${bucket.name}\n${key}`)}` },
+        { text: botT(lang, 'btn_share'), callback_data: `share:${storeCallbackData(`${bucket.name}\n${key}`)}` },
+        { text: botT(lang, 'btn_detail'), callback_data: `info:${storeCallbackData(`${bucket.name}\n${key}`)}` },
       ]],
     };
   } catch (e) {
-    return { text: `上传失败: ${escHtml((e as Error).message)}` };
+    return { text: botT(lang, 'upload_failed', escHtml((e as Error).message)) };
   }
 }
 
@@ -439,27 +439,36 @@ export async function registerWebhook(workerUrl: string, env: Env): Promise<bool
   const data = await res.json() as { ok: boolean };
   if (!data.ok) return false;
 
-  // Register bot commands for autocomplete in Telegram client
+  const cmdKeys = [
+    'buckets', 'ls', 'info', 'search', 'share', 'shares',
+    'revoke', 'delete', 'stats', 'setbucket', 'miniapp', 'help',
+  ];
+
+  // Set default commands (English)
+  const defaultCommands = cmdKeys.map(c => ({
+    command: c, description: botStrings.en[`cmd_${c}`],
+  }));
   await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/setMyCommands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      commands: [
-        { command: 'buckets', description: '列出所有 Bucket' },
-        { command: 'ls', description: '列出文件 - /ls <bucket> [prefix]' },
-        { command: 'info', description: '文件详情 - /info <bucket> <key>' },
-        { command: 'search', description: '搜索文件 - /search <bucket> <关键词>' },
-        { command: 'share', description: '创建分享 - /share <bucket> <key> [秒数] [口令] [次数]' },
-        { command: 'shares', description: '列出分享 - /shares [bucket]' },
-        { command: 'revoke', description: '撤销分享 - /revoke <token>' },
-        { command: 'delete', description: '删除文件 - /delete <bucket> <key>' },
-        { command: 'stats', description: '存储统计' },
-        { command: 'setbucket', description: '设置默认上传 Bucket - /setbucket [name]' },
-        { command: 'miniapp', description: '打开网盘管理面板' },
-        { command: 'help', description: '帮助信息' },
-      ],
-    }),
+    body: JSON.stringify({ commands: defaultCommands }),
   });
+
+  // Set per-language command descriptions for non-default languages
+  for (const langCode of SUPPORTED_LANGS) {
+    if (langCode === 'en') continue;
+    const commands = cmdKeys.map(c => ({
+      command: c, description: botStrings[langCode][`cmd_${c}`],
+    }));
+    await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commands,
+        language_code: langCode,
+      }),
+    });
+  }
 
   return true;
 }

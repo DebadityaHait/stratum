@@ -1,4 +1,6 @@
 import type { Env } from '../types';
+import type { Lang } from '../i18n';
+import { botT } from '../i18n';
 import { MetadataStore } from '../storage/metadata';
 import { createShareToken } from '../sharing/tokens';
 import { sendMessageWithKeyboard } from './webhook';
@@ -64,112 +66,71 @@ export function resolvePendingDelete(shortId: string): { bucket: string; key: st
   return { bucket: entry.bucket, key: entry.key };
 }
 
-export async function handleBotCommand(text: string, chatId: string, env: Env, baseUrl?: string): Promise<string | BotReply | null> {
+export async function handleBotCommand(text: string, chatId: string, env: Env, baseUrl?: string, lang: Lang = 'en'): Promise<string | BotReply | null> {
   const parts = text.trim().split(/\s+/);
   const cmd = parts[0].toLowerCase().replace(/@\w+$/, ''); // remove @botname suffix
   const args = parts.slice(1);
 
   switch (cmd) {
     case '/start':
-      return startText();
+      return botT(lang, 'start_text');
 
     case '/help':
-      return helpText();
+      return botT(lang, 'help_text');
 
     case '/buckets':
-      return listBucketsCmd(env);
+      return listBucketsCmd(env, lang);
 
     case '/ls':
-      return listObjectsCmd(args, env);
+      return listObjectsCmd(args, env, lang);
 
     case '/info':
-      return objectInfoCmd(args, env);
+      return objectInfoCmd(args, env, lang);
 
     case '/share':
-      return shareCmd(args, env, baseUrl);
+      return shareCmd(args, env, lang, baseUrl);
 
     case '/shares':
-      return listSharesCmd(args, env, baseUrl);
+      return listSharesCmd(args, env, lang, baseUrl);
 
     case '/revoke':
-      return revokeShareCmd(args, chatId, env);
+      return revokeShareCmd(args, chatId, env, lang);
 
     case '/stats':
-      return statsCmd(env);
+      return statsCmd(env, lang);
 
     case '/delete':
-      return deleteCmd(args, chatId, env);
+      return deleteCmd(args, chatId, env, lang);
 
     case '/search':
-      return searchCmd(args, env);
+      return searchCmd(args, env, lang);
 
     case '/miniapp':
-      return miniAppCmd(chatId, env, baseUrl);
+      return miniAppCmd(chatId, env, lang, baseUrl);
 
     case '/setbucket':
-      return setBucketCmd(args, chatId, env);
+      return setBucketCmd(args, chatId, env, lang);
 
     default:
       return null;
   }
 }
 
-function startText(): string {
-  return `欢迎使用 <b>tg-s3</b> - 基于 Telegram 的 S3 兼容存储。
-
-<b>快速上手</b>
-1. 直接发送文件给我，自动上传到默认 Bucket
-2. 使用 /ls 查看文件，/share 创建分享链接
-3. 使用 /miniapp 打开网盘管理面板
-
-支持 S3 API (rclone/aws cli)、Bot 管理、Mini App 三种访问方式。
-输入 /help 查看完整命令列表。`;
-}
-
-function helpText(): string {
-  return `<b>tg-s3 Bot</b>
-
-<b>Bucket 管理</b>
-/buckets - 列出所有 Bucket
-/stats - 存储统计
-
-<b>文件操作</b>
-/ls &lt;bucket&gt; [prefix] [页码] - 列出文件
-  例: <code>/ls photos 2024/</code>  <code>/ls photos 2024/ 2</code>
-/info &lt;bucket&gt; &lt;key&gt; - 文件详情
-  例: <code>/info docs report.pdf</code>
-/delete &lt;bucket&gt; &lt;key&gt; - 删除文件
-  例: <code>/delete docs old-report.pdf</code>
-/search &lt;bucket&gt; &lt;关键词&gt; - 搜索文件
-  例: <code>/search photos sunset</code>
-
-<b>分享管理</b>
-/share &lt;bucket&gt; &lt;key&gt; [秒数] [口令] [最大次数] - 创建分享
-  例: <code>/share docs report.pdf 86400 mypass 10</code>
-  (86400秒=1天, 口令和次数可选)
-/shares [bucket] - 列出分享
-/revoke &lt;token&gt; - 撤销分享
-
-<b>管理面板</b>
-/miniapp - 打开网盘管理 Mini App
-/setbucket [bucket] - 设置默认上传 Bucket`;
-}
-
-async function listBucketsCmd(env: Env): Promise<string> {
+async function listBucketsCmd(env: Env, lang: Lang): Promise<string> {
   const store = new MetadataStore(env);
   const buckets = await store.listBuckets();
-  if (buckets.length === 0) return '暂无 Bucket。';
+  if (buckets.length === 0) return botT(lang, 'no_buckets');
 
   const lines = buckets.map(b => {
     const size = formatSize(b.total_size);
     const desc = b.description ? `\n  ${escHtml(b.description)}` : '';
-    return `📁 <b>${escHtml(b.name)}</b> - ${b.object_count} 个文件, ${size}${desc}`;
+    return botT(lang, 'bucket_item', escHtml(b.name), b.object_count, size, desc);
   });
   return lines.join('\n');
 }
 
-async function listObjectsCmd(args: string[], env: Env): Promise<string | BotReply> {
-  if (args.length < 1) return '用法: /ls &lt;bucket&gt; [prefix] [页码]\n例: <code>/ls photos 2024/ 2</code>';
+async function listObjectsCmd(args: string[], env: Env, lang: Lang): Promise<string | BotReply> {
+  if (args.length < 1) return botT(lang, 'usage_ls');
   const bucket = args[0];
   // Last arg might be a page number
   let prefix = '';
@@ -180,18 +141,17 @@ async function listObjectsCmd(args: string[], env: Env): Promise<string | BotRep
   } else {
     prefix = args.slice(1).join(' ');
   }
-  return listObjectsDirect(bucket, prefix, page, env);
+  return listObjectsDirect(bucket, prefix, page, env, lang);
 }
 
 /** Direct list objects with structured params (bypasses command string parsing) */
-export async function listObjectsDirect(bucket: string, prefix: string, page: number, env: Env): Promise<string | BotReply> {
+export async function listObjectsDirect(bucket: string, prefix: string, page: number, env: Env, lang: Lang = 'en'): Promise<string | BotReply> {
   const pageSize = 20;
   const store = new MetadataStore(env);
   const bucketObj = await store.getBucket(bucket);
-  if (!bucketObj) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
+  if (!bucketObj) return botT(lang, 'bucket_not_found', escHtml(bucket));
 
   // Fetch enough items to skip previous pages
-  // For simplicity with delimiter grouping, we fetch all up to page*pageSize and take the last pageSize
   const totalFetch = page * pageSize;
   const result = await store.listObjects(bucket, prefix, '/', totalFetch);
 
@@ -205,15 +165,15 @@ export async function listObjectsDirect(bucket: string, prefix: string, page: nu
     allItems.push(`📄 ${escHtml(name)} (${formatSize(obj.size)})`);
   }
 
-  if (allItems.length === 0) return '该路径下无文件。';
+  if (allItems.length === 0) return botT(lang, 'empty_path');
 
   const start = (page - 1) * pageSize;
   const pageItems = allItems.slice(start, start + pageSize);
-  if (pageItems.length === 0) return `第 ${page} 页无内容，共 ${allItems.length} 项。`;
+  if (pageItems.length === 0) return botT(lang, 'page_empty', page, allItems.length);
 
   const totalPages = Math.ceil(allItems.length / pageSize) + (result.isTruncated ? 1 : 0);
   const header = allItems.length > pageSize || page > 1
-    ? `[第 ${page} 页${totalPages > 1 ? ` / 约 ${totalPages} 页` : ''}]\n`
+    ? botT(lang, 'page_header', page, totalPages > 1 ? botT(lang, 'page_of', totalPages) : '')
     : '';
   const text = header + pageItems.join('\n');
 
@@ -225,60 +185,50 @@ export async function listObjectsDirect(bucket: string, prefix: string, page: nu
   const buttons: Array<{ text: string; callback_data: string }> = [];
   if (hasPrev) {
     const id = storeCallbackData(`${bucket}\n${prefix}\n${page - 1}`);
-    buttons.push({ text: `« 第 ${page - 1} 页`, callback_data: `ls:${id}` });
+    buttons.push({ text: botT(lang, 'page_prev', page - 1), callback_data: `ls:${id}` });
   }
   if (hasNext) {
     const id = storeCallbackData(`${bucket}\n${prefix}\n${page + 1}`);
-    buttons.push({ text: `第 ${page + 1} 页 »`, callback_data: `ls:${id}` });
+    buttons.push({ text: botT(lang, 'page_next', page + 1), callback_data: `ls:${id}` });
   }
   return { text, keyboard: [buttons] };
 }
 
-async function objectInfoCmd(args: string[], env: Env): Promise<string> {
-  if (args.length < 2) return '用法: /info <bucket> <key>';
+async function objectInfoCmd(args: string[], env: Env, lang: Lang): Promise<string> {
+  if (args.length < 2) return botT(lang, 'usage_info');
   const [bucket, ...keyParts] = args;
   const key = keyParts.join(' ');
 
   const store = new MetadataStore(env);
   const bucketExists = await store.getBucket(bucket);
-  if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
+  if (!bucketExists) return botT(lang, 'bucket_not_found', escHtml(bucket));
   const obj = await store.getObject(bucket, key);
-  if (!obj) return `文件不存在。使用 <code>/ls ${escHtml(bucket)}</code> 查看文件列表。`;
+  if (!obj) return botT(lang, 'file_not_found_hint', escHtml(bucket));
 
-  return `<b>文件信息</b>
-名称: ${escHtml(obj.key)}
-Bucket: ${escHtml(obj.bucket)}
-大小: ${formatSize(obj.size)}
-类型: ${escHtml(obj.content_type)}
-ETag: ${escHtml(obj.etag)}
-修改时间: ${obj.last_modified}`;
+  return botT(lang, 'file_detail',
+    escHtml(obj.key), escHtml(obj.bucket), formatSize(obj.size),
+    escHtml(obj.content_type), escHtml(obj.etag), obj.last_modified);
 }
 
-async function shareCmd(args: string[], env: Env, baseUrl?: string): Promise<string> {
-  if (args.length < 2) return '用法: /share &lt;bucket&gt; &lt;key&gt; [时效秒数] [口令] [最大次数]\n例: <code>/share docs report.pdf</code> (永久)\n例: <code>/share docs report.pdf 86400</code> (1天)\n例: <code>/share docs report.pdf 86400 mypass 10</code>';
+async function shareCmd(args: string[], env: Env, lang: Lang, baseUrl?: string): Promise<string> {
+  if (args.length < 2) return botT(lang, 'usage_share');
   const bucket = args[0];
   // Parse optional trailing params from the end to support keys with spaces.
-  // Pattern: <key...> [expiresIn(numeric)] [password] [maxDownloads(numeric)]
   let keyEndIdx = args.length;
   let maxDownloads: number | undefined;
   let password: string | undefined;
   let expiresIn: number | undefined;
-  // maxDownloads: last arg if numeric
   if (keyEndIdx > 2 && /^\d+$/.test(args[keyEndIdx - 1])) {
-    // Could be maxDownloads, expiresIn, or part of key — check context
-    // If 3+ trailing args look like [number, string, number], parse as options
     if (keyEndIdx > 4 && /^\d+$/.test(args[keyEndIdx - 3])) {
       maxDownloads = parseInt(args[keyEndIdx - 1], 10);
       password = args[keyEndIdx - 2] || undefined;
       expiresIn = parseInt(args[keyEndIdx - 3], 10);
       keyEndIdx -= 3;
     } else if (keyEndIdx > 3 && !/^\d+$/.test(args[keyEndIdx - 2])) {
-      // [string, number] → password + maxDownloads
       maxDownloads = parseInt(args[keyEndIdx - 1], 10);
       password = args[keyEndIdx - 2] || undefined;
       keyEndIdx -= 2;
     } else if (keyEndIdx > 2) {
-      // Single trailing number → expiresIn (most common: /share bucket key 86400)
       expiresIn = parseInt(args[keyEndIdx - 1], 10);
       keyEndIdx -= 1;
     }
@@ -290,46 +240,44 @@ async function shareCmd(args: string[], env: Env, baseUrl?: string): Promise<str
 
   const store = new MetadataStore(env);
   const bucketExists = await store.getBucket(bucket);
-  if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
+  if (!bucketExists) return botT(lang, 'bucket_not_found', escHtml(bucket));
   const obj = await store.getObject(bucket, key);
-  if (!obj) return `文件不存在。使用 <code>/ls ${escHtml(bucket)}</code> 查看文件列表。`;
+  if (!obj) return botT(lang, 'file_not_found_hint', escHtml(bucket));
 
   const share = await createShareToken({ bucket, key, expiresIn, password, maxDownloads }, env);
-  const expiryStr = share.expires_at ? `\n有效期至: ${share.expires_at}` : '\n永久有效';
-  const pwdStr = password ? '\n口令: 已设置' : '';
-  const dlStr = maxDownloads ? `\n下载限制: ${maxDownloads} 次` : '';
+  const expiryStr = share.expires_at ? botT(lang, 'share_expires_at', share.expires_at) : botT(lang, 'share_permanent');
+  const pwdStr = password ? botT(lang, 'share_pwd_set') : '';
+  const dlStr = maxDownloads ? botT(lang, 'share_max_dl', maxDownloads) : '';
   const shareUrl = baseUrl ? `${baseUrl}/share/${share.token}` : `/share/${share.token}`;
 
-  return `<b>分享已创建</b>
-Token: <code>${share.token}</code>${expiryStr}${pwdStr}${dlStr}
-
-分享链接:
-${shareUrl}`;
+  return botT(lang, 'share_created', share.token, expiryStr, pwdStr, dlStr, shareUrl);
 }
 
-async function listSharesCmd(args: string[], env: Env, baseUrl?: string): Promise<string | BotReply> {
+async function listSharesCmd(args: string[], env: Env, lang: Lang, baseUrl?: string): Promise<string | BotReply> {
   const bucket = args[0] || undefined;
-  return listSharesDirect(bucket, 1, env, baseUrl);
+  return listSharesDirect(bucket, 1, env, baseUrl, lang);
 }
 
 /** Direct list shares with page parameter (for callback pagination) */
-export async function listSharesDirect(bucket: string | undefined, page: number, env: Env, baseUrl?: string): Promise<string | BotReply> {
+export async function listSharesDirect(bucket: string | undefined, page: number, env: Env, baseUrl?: string, lang: Lang = 'en'): Promise<string | BotReply> {
   const pageSize = 20;
   const store = new MetadataStore(env);
   const tokens = await store.listShareTokens(bucket);
 
-  if (tokens.length === 0) return '暂无分享。';
+  if (tokens.length === 0) return botT(lang, 'no_shares');
 
   const start = (page - 1) * pageSize;
   const shown = tokens.slice(start, start + pageSize);
-  if (shown.length === 0) return `第 ${page} 页无内容，共 ${tokens.length} 个分享。`;
+  if (shown.length === 0) return botT(lang, 'shares_page_empty', page, tokens.length);
 
   const totalPages = Math.ceil(tokens.length / pageSize);
-  const header = totalPages > 1 ? `[第 ${page} 页 / ${totalPages} 页]\n` : '';
+  const header = totalPages > 1 ? botT(lang, 'page_header', page, botT(lang, 'page_of', totalPages)) : '';
 
   const lines = shown.map(t => {
-    const expired = t.expires_at && new Date(t.expires_at) < new Date() ? ' [已过期]' : '';
-    const dl = t.max_downloads !== null ? ` (${t.download_count}/${t.max_downloads})` : ` (${t.download_count}次)`;
+    const expired = t.expires_at && new Date(t.expires_at) < new Date() ? botT(lang, 'share_expired_tag') : '';
+    const dl = t.max_downloads !== null
+      ? botT(lang, 'share_dl_limited', t.download_count, t.max_downloads)
+      : botT(lang, 'share_dl_unlimited', t.download_count);
     const link = baseUrl ? `\n  ${baseUrl}/share/${t.token}` : '';
     return `🔗 ${escHtml(t.key)}${dl}${expired}\n  <code>${t.token}</code>${link}`;
   });
@@ -343,87 +291,82 @@ export async function listSharesDirect(bucket: string | undefined, page: number,
   const buttons: Array<{ text: string; callback_data: string }> = [];
   if (hasPrev) {
     const id = storeCallbackData(`${bucket || ''}\n${page - 1}`);
-    buttons.push({ text: `« 第 ${page - 1} 页`, callback_data: `shares:${id}` });
+    buttons.push({ text: botT(lang, 'page_prev', page - 1), callback_data: `shares:${id}` });
   }
   if (hasNext) {
     const id = storeCallbackData(`${bucket || ''}\n${page + 1}`);
-    buttons.push({ text: `第 ${page + 1} 页 »`, callback_data: `shares:${id}` });
+    buttons.push({ text: botT(lang, 'page_next', page + 1), callback_data: `shares:${id}` });
   }
   return { text, keyboard: [buttons] };
 }
 
-async function revokeShareCmd(args: string[], chatId: string, env: Env): Promise<string | BotReply | null> {
-  if (args.length < 1) return '用法: /revoke &lt;token&gt;';
+async function revokeShareCmd(args: string[], chatId: string, env: Env, lang: Lang): Promise<string | BotReply | null> {
+  if (args.length < 1) return botT(lang, 'usage_revoke');
   const store = new MetadataStore(env);
   const token = args[0];
   const existing = await store.getShareToken(token);
-  if (!existing) return '分享 Token 不存在。';
+  if (!existing) return botT(lang, 'share_token_not_found');
 
-  // 二次确认（与 /delete 行为一致）
   const shortId = generateShortId();
   pendingDeletes.set(shortId, { bucket: `__revoke__:${token}`, key: existing.key, ts: Date.now() });
   await sendMessageWithKeyboard(chatId,
-    `确认撤销分享?\n\n🔗 ${escHtml(existing.key)}\nBucket: ${escHtml(existing.bucket)}\nToken: <code>${token.slice(0, 16)}...</code>\n\n⏱ 请在 5 分钟内确认`,
+    botT(lang, 'revoke_confirm', escHtml(existing.key), escHtml(existing.bucket), token.slice(0, 16)),
     [[
-      { text: '确认撤销', callback_data: `del_yes:${shortId}` },
-      { text: '取消', callback_data: `del_no:${shortId}` },
+      { text: botT(lang, 'btn_confirm_revoke'), callback_data: `del_yes:${shortId}` },
+      { text: botT(lang, 'btn_cancel'), callback_data: `del_no:${shortId}` },
     ]],
     env,
   );
   return null;
 }
 
-async function statsCmd(env: Env): Promise<string> {
+async function statsCmd(env: Env, lang: Lang): Promise<string> {
   const store = new MetadataStore(env);
   const buckets = await store.listBuckets();
   const totalFiles = buckets.reduce((s, b) => s + b.object_count, 0);
   const totalSize = buckets.reduce((s, b) => s + b.total_size, 0);
 
-  return `<b>存储统计</b>
-Bucket 数: ${buckets.length}
-文件总数: ${totalFiles}
-总大小: ${formatSize(totalSize)}`;
+  return botT(lang, 'stats_text', buckets.length, totalFiles, formatSize(totalSize));
 }
 
-async function deleteCmd(args: string[], chatId: string, env: Env): Promise<string | null> {
-  if (args.length < 2) return '用法: /delete &lt;bucket&gt; &lt;key&gt;';
+async function deleteCmd(args: string[], chatId: string, env: Env, lang: Lang): Promise<string | null> {
+  if (args.length < 2) return botT(lang, 'usage_delete');
   const bucket = args[0];
   const key = args.slice(1).join(' ');
 
   const store = new MetadataStore(env);
   const bucketExists = await store.getBucket(bucket);
-  if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
+  if (!bucketExists) return botT(lang, 'bucket_not_found', escHtml(bucket));
   const obj = await store.getObject(bucket, key);
-  if (!obj) return '文件不存在。';
+  if (!obj) return botT(lang, 'file_not_found');
 
   // Send confirmation with inline keyboard
-  // Use short ID to avoid TG 64-byte callback_data limit truncating long paths
   const shortId = generateShortId();
   pendingDeletes.set(shortId, { bucket, key, ts: Date.now() });
   const cbData = `del_yes:${shortId}`;
   const cbCancel = `del_no:${shortId}`;
   await sendMessageWithKeyboard(chatId,
-    `确认删除?\n\n📄 ${escHtml(key)}\n大小: ${formatSize(obj.size)}\nBucket: ${escHtml(bucket)}\n\n⏱ 请在 5 分钟内确认，超时需重新操作`,
+    botT(lang, 'delete_confirm', escHtml(key), formatSize(obj.size), escHtml(bucket)),
     [[
-      { text: '确认删除', callback_data: cbData },
-      { text: '取消', callback_data: cbCancel },
+      { text: botT(lang, 'btn_confirm_delete'), callback_data: cbData },
+      { text: botT(lang, 'btn_cancel'), callback_data: cbCancel },
     ]],
     env,
   );
   return null; // Already sent the message with keyboard
 }
 
-async function searchCmd(args: string[], env: Env): Promise<string> {
-  if (args.length < 2) return '用法: /search &lt;bucket&gt; &lt;关键词&gt;';
+async function searchCmd(args: string[], env: Env, lang: Lang): Promise<string> {
+  if (args.length < 2) return botT(lang, 'usage_search');
   const bucket = args[0];
   const query = args.slice(1).join(' ');
 
   const store = new MetadataStore(env);
   const bucketExists = await store.getBucket(bucket);
-  if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;
+  if (!bucketExists) return botT(lang, 'bucket_not_found', escHtml(bucket));
   const results = await store.searchObjects(bucket, query, 21);
 
-  if (results.length === 0) return `未找到匹配「${escHtml(query)}」的文件。`;
+  if (results.length === 0) return botT(lang, 'search_no_result', escHtml(query));
 
   const hasMore = results.length > 20;
   const shown = hasMore ? results.slice(0, 20) : results;
@@ -431,37 +374,36 @@ async function searchCmd(args: string[], env: Env): Promise<string> {
     return `📄 ${escHtml(obj.key)} (${formatSize(obj.size)})`;
   });
 
-  if (hasMore) lines.push('\n... 还有更多结果，请使用更精确的关键词缩小范围');
-  return `<b>搜索结果</b> (${hasMore ? '20+' : shown.length} 个)\n\n` + lines.join('\n');
+  if (hasMore) lines.push(botT(lang, 'search_more'));
+  return botT(lang, 'search_title', hasMore ? '20+' : String(shown.length)) + lines.join('\n');
 }
 
-async function setBucketCmd(args: string[], chatId: string, env: Env): Promise<string> {
+async function setBucketCmd(args: string[], chatId: string, env: Env, lang: Lang): Promise<string> {
   const store = new MetadataStore(env);
   const buckets = await store.listBuckets();
 
   if (args.length < 1) {
     const current = await store.getUserPref(chatId, 'default_bucket');
-    const currentStr = current ? `当前默认: <b>${escHtml(current)}</b>` : '未设置 (使用第一个 Bucket)';
+    const currentStr = current ? botT(lang, 'setbucket_current', escHtml(current)) : botT(lang, 'setbucket_none');
     const bucketList = buckets.map(b => `  <code>${escHtml(b.name)}</code>`).join('\n');
-    return `${currentStr}\n\n用法: /setbucket [bucket名]\n\n可用 Bucket:\n${bucketList}`;
+    return botT(lang, 'setbucket_usage', currentStr, bucketList);
   }
 
   const name = args[0];
   const exists = buckets.find(b => b.name === name);
-  if (!exists) return `Bucket「${escHtml(name)}」不存在。使用 /buckets 查看可用列表。`;
+  if (!exists) return botT(lang, 'setbucket_not_found', escHtml(name));
 
   await store.setUserPref(chatId, 'default_bucket', name);
-  return `已设置默认上传 Bucket: <b>${escHtml(name)}</b>`;
+  return botT(lang, 'setbucket_done', escHtml(name));
 }
 
-async function miniAppCmd(chatId: string, env: Env, baseUrl?: string): Promise<string | null> {
+async function miniAppCmd(chatId: string, env: Env, lang: Lang, baseUrl?: string): Promise<string | null> {
   if (baseUrl) {
     const miniAppUrl = `${baseUrl}/miniapp`;
-    await sendMessageWithKeyboard(chatId, '点击下方按钮打开网盘管理面板。', [[
-      { text: '打开 Mini App', web_app: { url: miniAppUrl } },
+    await sendMessageWithKeyboard(chatId, botT(lang, 'miniapp_open'), [[
+      { text: botT(lang, 'btn_miniapp'), web_app: { url: miniAppUrl } },
     ]], env);
     return null;
   }
-  return '无法获取 Mini App 地址，请通过浏览器直接访问 /miniapp 路径。';
+  return botT(lang, 'miniapp_fallback');
 }
-
