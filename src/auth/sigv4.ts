@@ -66,7 +66,14 @@ export async function verifySignature(request: Request, url: URL, resolve: Crede
     const computed = bufToHex(await hmacSha256(signingKey, stringToSign));
 
     if (!timingSafeEqual(computed, signature)) {
-      return { status: 403, code: 'SignatureDoesNotMatch', message: 'The request signature we calculated does not match the signature you provided.' };
+      // Temporary debug: include canonical request details to diagnose signature mismatch
+      const debugInfo = JSON.stringify({
+        canonicalRequest,
+        stringToSign,
+        computedSig: computed,
+        providedSig: signature,
+      });
+      return { status: 403, code: 'SignatureDoesNotMatch', message: 'The request signature we calculated does not match the signature you provided. Debug: ' + debugInfo };
     }
 
     return resolved.context; // success
