@@ -43,6 +43,12 @@ function routeS3Request(method: string, path: string, query: URLSearchParams): S
 }
 ```
 
+### 不支持的子资源操作安全网
+
+路由在匹配数据操作（GetObject/PutObject/DeleteObject）之前，会检查请求是否携带不支持的 S3 子资源查询参数（如 `?acl`, `?tagging`, `?policy` 等）。如果匹配到不支持的子资源，返回 `501 NotImplemented` 而非落到数据操作。这防止了客户端发送 `PUT /{bucket}/{key}?acl` 时将 ACL XML body 当作文件内容覆盖写入的数据损坏风险。
+
+拦截的子资源列表: `acl`, `tagging`, `policy`, `cors`, `lifecycle`, `encryption`, `notification`, `replication`, `website`, `logging`, `analytics`, `metrics`, `inventory`, `accelerate`, `requestPayment`, `object-lock`, `legal-hold`, `retention`, `torrent`, `restore`, `select`, `intelligent-tiering`, `ownershipControls`, `publicAccessBlock`, `versions`。
+
 ## 路径格式
 
 支持 Path-style（不支持 Virtual-hosted-style，因为需要通配符 DNS）：
@@ -335,7 +341,9 @@ CPU 开销：1-3ms，在免费计划 10ms CPU 限制内完全可行。
 Telegram Mini App 通过 WebApp initData 认证：
 1. 从 Authorization header 提取 `tg <initData>`
 2. 按 Telegram 规范验证 HMAC 签名
-3. 验证通过后授予 API 访问权限
+3. 验证通过后授予 **admin 权限**（等同全权凭证，含凭证管理和 Bucket 删除）
+
+> 设计选择: Mini App 用户统一获得 admin 权限，因为 tg-s3 是单用户系统，能打开 Mini App 的用户即为系统所有者。如果将来需要多用户支持，应引入 TG user_id 白名单机制。
 
 ### 认证模式总结
 
@@ -374,6 +382,21 @@ Telegram Mini App 通过 WebApp initData 认证：
 - 无 Bucket Policy / ACL: 单用户系统，使用 Bearer Token 或 SigV4 认证
 
 ## 响应格式
+
+### 通用响应头（S3 兼容性）
+
+所有响应自动附加以下标准 S3 头，确保 AWS SDK 和 S3 客户端工具正常工作：
+
+| Header | 值 | 说明 |
+|--------|---|------|
+| `Date` | UTC 时间 | AWS SDK 用于时钟偏差检测 |
+| `x-amz-request-id` | 16 字符随机 hex | 请求追踪标识 |
+| `x-amz-id-2` | 32 字符随机 hex | 扩展请求标识 |
+| `Server` | `AmazonS3` | 部分 SDK/工具检查此头 |
+| `Access-Control-Allow-Origin` | `*` | CORS 支持 |
+| `Access-Control-Expose-Headers` | ETag, Content-Range 等 | 浏览器可读取的响应头列表 |
+
+### 错误响应
 
 所有错误返回 S3 标准 XML：
 

@@ -153,7 +153,7 @@ vps.tg-s3.example.com {
 ### 处理服务 Dockerfile
 
 ```dockerfile
-FROM node:20-slim
+FROM node:22-slim
 
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
@@ -320,7 +320,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 
 ### 技术栈
 
-- 纯 HTML/CSS/JS (无框架依赖，~1350 行内联代码)
+- 纯 HTML/CSS/JS (无框架依赖，~1600 行内联代码)
 - Telegram WebApp JS SDK (主题色适配)
 - 部署: Worker 内联提供 (无需 CF Pages)
 - API: 调用 `/api/miniapp/*` 管理 API (上传/下载/预览均通过内部端点，无需 S3 凭据)
@@ -522,7 +522,7 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
   - 移动端体验良好
   - 无需独立域名或 CF Pages
 
-估计工作量: ~1350 行内联代码
+估计工作量: ~1600 行内联代码
 ```
 
 ### Phase 8: Telegram Bot [已实现]
@@ -552,10 +552,10 @@ if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
 | 4 | 图床 | ~400 行 | 4400 |
 | 5 | VPS + 大文件 | ~500 行 | 4900 |
 | 6 | 媒体处理 | ~200 行 | 5100 |
-| 7 | Web UI | ~1350 行 | 6450 |
-| 8 | TG Bot | ~800 行 | 7250 |
+| 7 | Web UI | ~1600 行 | 6700 |
+| 8 | TG Bot | ~800 行 | 7500 |
 
-**实际约 8,200 行代码**（TypeScript + 内联 HTML/CSS/JS）。
+**实际约 9,600 行代码**（TypeScript + 内联 HTML/CSS/JS + SQL）。
 
 > 注: Phase 5-6 中 VPS 端服务代码（Docker/Node.js）为独立仓库，此处仅统计 Worker 侧代码。
 

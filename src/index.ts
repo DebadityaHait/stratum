@@ -672,6 +672,11 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
 
   // POST /api/miniapp/credential - create new credential
   if (path === '/api/miniapp/credential' && method === 'POST') {
+    // Limit total credentials to prevent abuse
+    const credCount = await store.countCredentials();
+    if (credCount >= 100) {
+      return Response.json({ error: 'Maximum number of credentials (100) reached' }, { status: 400 });
+    }
     let body: { name?: string; buckets?: string; permission?: string };
     try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
     const permission = body.permission || 'readwrite';
