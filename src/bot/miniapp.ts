@@ -639,14 +639,15 @@ function onFileClick(event, bucket, key) {
   if (batchMode) {
     event.stopPropagation();
     const el = event.currentTarget;
+    const chk = el.querySelector('.file-check');
     if (selectedFiles.has(key)) {
       selectedFiles.delete(key);
       el.classList.remove('selected');
-      el.querySelector('.file-check').textContent = '';
+      if (chk) chk.textContent = '';
     } else {
       selectedFiles.add(key);
       el.classList.add('selected');
-      el.querySelector('.file-check').textContent = '\u2713';
+      if (chk) chk.textContent = '\u2713';
     }
     updateBatchToolbar();
     return;
@@ -838,18 +839,13 @@ async function uploadFiles(files) {
     }
 
     try {
-      const presign = await apiFetch('/api/miniapp/presign', {
-        method: 'POST',
-        body: JSON.stringify({ bucket: currentBucket, key, method: 'PUT', expiresIn: 600 }),
-      });
-
-      const putRes = await fetch(presign.url, {
+      const putRes = await fetch(API + '/api/miniapp/upload?bucket=' + encodeURIComponent(currentBucket) + '&key=' + encodeURIComponent(key), {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        headers: { 'Authorization': authHeader, 'Content-Type': file.type || 'application/octet-stream' },
         body: file,
       });
 
-      if (!putRes.ok) throw new Error('PUT failed: ' + putRes.status);
+      if (!putRes.ok) throw new Error(t('upload_put_failed', putRes.status));
       done++;
     } catch (e) {
       var reason = e && e.message ? e.message : '';
@@ -899,13 +895,9 @@ async function createFolder() {
   if (name.includes('/')) { toast(t('folder_name_no_slash')); return; }
   var key = currentPrefix + name + '/';
   try {
-    var presign = await apiFetch('/api/miniapp/presign', {
-      method: 'POST',
-      body: JSON.stringify({ bucket: currentBucket, key: key, method: 'PUT', expiresIn: 60 }),
-    });
-    var putRes = await fetch(presign.url, {
+    var putRes = await fetch(API + '/api/miniapp/upload?bucket=' + encodeURIComponent(currentBucket) + '&key=' + encodeURIComponent(key), {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/x-directory' },
+      headers: { 'Authorization': authHeader, 'Content-Type': 'application/x-directory' },
       body: new ArrayBuffer(0),
     });
     if (!putRes.ok) throw new Error('PUT failed: ' + putRes.status);
@@ -929,11 +921,10 @@ async function showFileDetail(bucket, key) {
     const isAudio = obj.content_type && obj.content_type.startsWith('audio/');
     const isPdf = obj.content_type && obj.content_type.includes('pdf');
     const isText = obj.content_type && (obj.content_type.startsWith('text/') || obj.content_type.includes('json') || obj.content_type.includes('xml') || obj.content_type.includes('javascript'));
-    const needsPresign = isImg || isVideo || isAudio || (isPdf && obj.size <= 10 * 1024 * 1024);
+    const hasPreview = isImg || isVideo || isAudio || (isPdf && obj.size <= 10 * 1024 * 1024);
     let mediaUrl = '';
-    if (needsPresign) {
-      try { mediaUrl = await getPresignedUrl(bucket, key); } catch (e) { /* preview unavailable */ }
-      if (gen !== detailGeneration) return;
+    if (hasPreview) {
+      mediaUrl = downloadUrl(bucket, key);
     }
     let previewHtml = '';
     if (isImg && mediaUrl) {
@@ -998,12 +989,11 @@ async function showFileDetail(bucket, key) {
     // Async load text preview content (guarded by generation counter)
     if (isText && obj.size <= 512 * 1024) {
       try {
-        const presign = await apiFetch('/api/miniapp/presign', {
-          method: 'POST',
-          body: JSON.stringify({ bucket, key, method: 'GET', expiresIn: 300 }),
+        const textRes = await fetch(API + '/api/miniapp/download?bucket=' + encodeURIComponent(bucket) + '&key=' + encodeURIComponent(key), {
+          headers: { 'Authorization': authHeader },
+          signal: AbortSignal.timeout(30000),
         });
         if (gen !== detailGeneration) return;
-        const textRes = await fetch(presign.url);
         if (!textRes.ok) throw new Error('HTTP ' + textRes.status);
         const text = await textRes.text();
         if (gen !== detailGeneration) return;
@@ -1023,17 +1013,9 @@ async function showFileDetail(bucket, key) {
   }
 }
 
-async function downloadFile(bucket, key) {
-  try {
-    const data = await apiFetch('/api/miniapp/presign', {
-      method: 'POST',
-      body: JSON.stringify({ bucket, key, method: 'GET', expiresIn: 300 }),
-    });
-    window.open(data.url, '_blank');
-    closeModal();
-  } catch (e) {
-    toast(t('download_link_failed'));
-  }
+function downloadFile(bucket, key) {
+  window.open(downloadUrl(bucket, key), '_blank');
+  closeModal();
 }
 
 async function copyPresignUrl(bucket, key) {
@@ -1315,7 +1297,7 @@ function showSkeleton(container, count) {
   container.innerHTML = html;
 }
 
-// Lazy thumbnail loading via presigned URLs
+// Lazy thumbnail loading
 var thumbObserver = new IntersectionObserver(function(entries) {
   entries.forEach(function(entry) {
     if (entry.isIntersecting) {
@@ -1331,27 +1313,13 @@ function observeThumbnails() {
   });
 }
 
-async function loadThumb(img) {
-  var gen = fileListGeneration;
-  try {
-    var data = await apiFetch('/api/miniapp/presign', {
-      method: 'POST',
-      body: JSON.stringify({ bucket: img.dataset.bucket, key: img.dataset.key, expiresIn: 3600 }),
-    });
-    if (gen !== fileListGeneration) return;
-    img.src = data.url;
-  } catch (e) {
-    if (gen !== fileListGeneration) return;
-    img.outerHTML = '<span style="font-size:24px">\u{1F5BC}\u{FE0F}</span>';
-  }
+function loadThumb(img) {
+  img.src = downloadUrl(img.dataset.bucket, img.dataset.key);
+  img.onerror = function() { img.outerHTML = '<span style="font-size:24px">\u{1F5BC}\u{FE0F}</span>'; };
 }
 
-async function getPresignedUrl(bucket, key) {
-  var data = await apiFetch('/api/miniapp/presign', {
-    method: 'POST',
-    body: JSON.stringify({ bucket: bucket, key: key, expiresIn: 300 }),
-  });
-  return data.url;
+function downloadUrl(bucket, key) {
+  return API + '/api/miniapp/download?bucket=' + encodeURIComponent(bucket) + '&key=' + encodeURIComponent(key) + '&auth=' + encodeURIComponent(authHeader.slice(7));
 }
 
 // Drag & drop upload on files view

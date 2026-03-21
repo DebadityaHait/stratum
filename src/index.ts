@@ -30,7 +30,7 @@ export default {
 
     // CORS preflight
     if (request.method === 'OPTIONS') {
-      return handleCors();
+      return addCorsHeaders(handleCors());
     }
 
     // Bot webhook (verified by secret_token derived from TG_BOT_TOKEN)
@@ -59,7 +59,7 @@ export default {
     if (path === '/api/presign' && request.method === 'POST') {
       const authResult = await authenticate(request, url, env);
       if (isAuthFailure(authResult)) return addCorsHeaders(errorResponse(authResult.status, authResult.code, authResult.message));
-      return addCorsHeaders(await handlePresignApi(request, url, env));
+      return addCorsHeaders(await handlePresignApi(request, url, env, authResult));
     }
 
     // Share management API (requires auth)
@@ -71,7 +71,14 @@ export default {
 
     // Mini App API (requires auth)
     if (path.startsWith('/api/miniapp/')) {
-      const authResult = await authenticate(request, url, env);
+      // Support auth token in query string for browser-navigable URLs (download, thumbnails)
+      let authReq = request;
+      if (!request.headers.get('Authorization') && url.searchParams.has('auth')) {
+        const headers = new Headers(request.headers);
+        headers.set('Authorization', 'Bearer ' + url.searchParams.get('auth'));
+        authReq = new Request(request, { headers });
+      }
+      const authResult = await authenticate(authReq, url, env);
       if (isAuthFailure(authResult)) return addCorsHeaders(errorResponse(authResult.status, authResult.code, authResult.message));
       return addCorsHeaders(await handleMiniAppApi(request, url, env, ctx));
     }
@@ -114,6 +121,25 @@ export default {
       const authzErr = authorize(authResult, bucket, operation);
       if (authzErr) {
         return addCorsHeaders(errorResponse(authzErr.status, authzErr.code, authzErr.message));
+      }
+
+      // CopyObject / UploadPartCopy: also check read permission on source bucket
+      if (operation === 'CopyObject' || operation === 'UploadPartCopy') {
+        const copySource = s3.headers.get('x-amz-copy-source') || '';
+        try {
+          const decoded = decodeURIComponent(copySource.split('?')[0]);
+          const trimmed = decoded.startsWith('/') ? decoded.slice(1) : decoded;
+          const si = trimmed.indexOf('/');
+          if (si > 0) {
+            const srcBucket = trimmed.slice(0, si);
+            if (srcBucket !== bucket) {
+              const srcAuthzErr = authorize(authResult, srcBucket, 'GetObject');
+              if (srcAuthzErr) {
+                return addCorsHeaders(errorResponse(srcAuthzErr.status, srcAuthzErr.code, `Access Denied: no read permission for source bucket '${srcBucket}'.`));
+              }
+            }
+          }
+        } catch { /* decoding error handled in handler */ }
       }
 
       // S3 limits key length to 1024 bytes (UTF-8 encoded); validate on write operations
@@ -429,11 +455,21 @@ async function dispatchS3(op: S3Operation, s3: S3Request, env: Env, ctx: Executi
   }
 }
 
-async function handlePresignApi(request: Request, url: URL, env: Env): Promise<Response> {
+async function handlePresignApi(request: Request, url: URL, env: Env, auth: AuthContext): Promise<Response> {
   let body: { bucket: string; key: string; method?: string; expiresIn?: number };
   try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
   if (!body.bucket || !body.key) {
     return Response.json({ error: 'bucket and key are required' }, { status: 400 });
+  }
+  const method = (body.method || 'GET').toUpperCase();
+  if (!['GET', 'PUT', 'HEAD', 'DELETE'].includes(method)) {
+    return Response.json({ error: 'method must be GET, PUT, HEAD, or DELETE' }, { status: 400 });
+  }
+  // Map HTTP method to S3 operation for authorization check
+  const opMap: Record<string, S3Operation> = { GET: 'GetObject', PUT: 'PutObject', HEAD: 'HeadObject', DELETE: 'DeleteObject' };
+  const authzErr = authorize(auth, body.bucket, opMap[method]);
+  if (authzErr) {
+    return Response.json({ error: authzErr.message }, { status: authzErr.status });
   }
   if (body.expiresIn !== undefined && body.expiresIn > S3_MAX_PRESIGN_EXPIRES) {
     return Response.json({ error: `expiresIn cannot exceed ${S3_MAX_PRESIGN_EXPIRES} seconds (7 days)` }, { status: 400 });
@@ -441,7 +477,7 @@ async function handlePresignApi(request: Request, url: URL, env: Env): Promise<R
   const presignedUrl = await generatePresignedUrl({
     bucket: body.bucket,
     key: body.key,
-    method: body.method,
+    method,
     expiresIn: body.expiresIn,
     env,
     baseUrl: url.origin,
@@ -578,7 +614,36 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
     return Response.json({ error: msgMatch?.[1] || codeMatch?.[1] || 'Failed' }, { status: res.status });
   }
 
-  // POST /api/miniapp/presign
+  // PUT /api/miniapp/upload?bucket=...&key=... (direct upload, no presigned URL needed)
+  if (path === '/api/miniapp/upload' && method === 'PUT') {
+    const bucket = url.searchParams.get('bucket');
+    const key = url.searchParams.get('key');
+    if (!bucket || !key) return Response.json({ error: 'bucket and key required' }, { status: 400 });
+    const s3: S3Request = {
+      method: 'PUT', bucket, key,
+      query: new URLSearchParams(),
+      headers: request.headers,
+      body: request.body,
+      url,
+    };
+    return handlePutObject(s3, env, ctx);
+  }
+
+  // GET /api/miniapp/download?bucket=...&key=... (direct download, no presigned URL needed)
+  if (path === '/api/miniapp/download' && method === 'GET') {
+    const bucket = url.searchParams.get('bucket');
+    const key = url.searchParams.get('key');
+    if (!bucket || !key) return Response.json({ error: 'bucket and key required' }, { status: 400 });
+    const s3: S3Request = {
+      method: 'GET', bucket, key,
+      query: url.searchParams,
+      headers: request.headers,
+      body: null, url,
+    };
+    return handleGetObject(s3, env, ctx);
+  }
+
+  // POST /api/miniapp/presign (kept for explicit "copy presigned URL" feature only)
   if (path === '/api/miniapp/presign' && method === 'POST') {
     let body: { bucket: string; key: string; method?: string; expiresIn?: number };
     try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -628,11 +693,11 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
       accessKeyId,
       secretAccessKey,
       name: body.name || '',
-      buckets: body.buckets || '*',
+      buckets: (body.buckets || '*').toLowerCase(),
       permission,
     });
     // Return full credential (only time secret is shown in plain text)
-    return Response.json({ access_key_id: accessKeyId, secret_access_key: secretAccessKey, name: body.name || '', buckets: body.buckets || '*', permission });
+    return Response.json({ access_key_id: accessKeyId, secret_access_key: secretAccessKey, name: body.name || '', buckets: (body.buckets || '*').toLowerCase(), permission });
   }
 
   // PATCH /api/miniapp/credential?accessKeyId=... - update credential
@@ -644,6 +709,7 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
     if (body.permission && !['admin', 'readwrite', 'readonly'].includes(body.permission)) {
       return Response.json({ error: 'permission must be admin, readwrite, or readonly' }, { status: 400 });
     }
+    if (body.buckets) body.buckets = body.buckets.toLowerCase();
     const ok = await store.updateCredential(accessKeyId, body);
     credentialCache.delete(accessKeyId);
     return Response.json({ ok });

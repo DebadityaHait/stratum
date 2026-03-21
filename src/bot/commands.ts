@@ -285,6 +285,9 @@ async function shareCmd(args: string[], env: Env, baseUrl?: string): Promise<str
   }
   const key = args.slice(1, keyEndIdx).join(' ');
 
+  if (expiresIn !== undefined && expiresIn < 1) expiresIn = undefined;
+  if (maxDownloads !== undefined && maxDownloads < 1) maxDownloads = undefined;
+
   const store = new MetadataStore(env);
   const bucketExists = await store.getBucket(bucket);
   if (!bucketExists) return `Bucket <b>${escHtml(bucket)}</b> 不存在。使用 /buckets 查看已有 Bucket。`;

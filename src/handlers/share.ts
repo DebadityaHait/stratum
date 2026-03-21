@@ -38,6 +38,8 @@ export async function handleShareApi(request: Request, url: URL, env: Env): Prom
     let body: { bucket: string; key: string; expiresIn?: number; password?: string; maxDownloads?: number; note?: string };
     try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
     if (!body.bucket || !body.key) return Response.json({ error: 'bucket and key are required' }, { status: 400 });
+    if (body.expiresIn !== undefined && body.expiresIn < 1) body.expiresIn = undefined;
+    if (body.maxDownloads !== undefined && body.maxDownloads < 1) body.maxDownloads = undefined;
     const store = new MetadataStore(env);
     const obj = await store.getObject(body.bucket, body.key);
     if (!obj) return Response.json({ error: 'Object not found' }, { status: 404 });
@@ -78,10 +80,13 @@ export async function handleShareApi(request: Request, url: URL, env: Env): Prom
       try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
       const updates: Record<string, unknown> = {};
       if (body.expiresIn !== undefined) {
-        const nowMs = Math.floor(Date.now() / 1000) * 1000;
-        updates.expires_at = body.expiresIn
-          ? new Date(nowMs + (body.expiresIn as number) * 1000).toISOString()
-          : null;
+        const expiresIn = body.expiresIn as number;
+        if (expiresIn >= 1) {
+          const nowMs = Math.floor(Date.now() / 1000) * 1000;
+          updates.expires_at = new Date(nowMs + expiresIn * 1000).toISOString();
+        } else {
+          updates.expires_at = null;
+        }
       }
       if (body.password !== undefined) {
         if (body.password) {
@@ -91,7 +96,10 @@ export async function handleShareApi(request: Request, url: URL, env: Env): Prom
           updates.password_hash = null;
         }
       }
-      if (body.maxDownloads !== undefined) updates.max_downloads = body.maxDownloads;
+      if (body.maxDownloads !== undefined) {
+        const md = body.maxDownloads as number;
+        updates.max_downloads = md >= 1 ? md : null;
+      }
       if (body.note !== undefined) updates.note = body.note;
       await store.updateShareToken(token, updates as any);
       const updated = await store.getShareToken(token);
