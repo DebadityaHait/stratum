@@ -1494,6 +1494,68 @@ async function loadKeys() {
   }
 }
 
+function buildBucketSelector(selectedBuckets, inputId) {
+  var isAll = selectedBuckets === '*';
+  var selected = isAll ? [] : selectedBuckets.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  var html = '<div class="form-group" id="' + inputId + 'Group">' +
+    '<label>' + esc(t('key_buckets_input_label')) + '</label>' +
+    '<input type="hidden" id="' + inputId + '" value="' + esc(selectedBuckets) + '">' +
+    '<div style="margin:6px 0">' +
+      '<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">' +
+        '<input type="checkbox" id="' + inputId + 'All"' + (isAll ? ' checked' : '') + ' onchange="onBucketAllToggle(\\'' + inputId + '\\')">' +
+        ' ' + esc(t('key_all_buckets')) + ' (*)' +
+      '</label>' +
+    '</div>' +
+    '<div id="' + inputId + 'Tags" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0' + (isAll ? ';opacity:0.4;pointer-events:none' : '') + '">';
+  if (buckets && buckets.length > 0) {
+    for (var i = 0; i < buckets.length; i++) {
+      var bn = buckets[i].name;
+      var active = selected.indexOf(bn) >= 0;
+      html += '<span class="badge ' + (active ? 'badge-active' : 'badge-inactive') + '" ' +
+        'style="cursor:pointer;padding:4px 10px;font-size:13px;user-select:none" ' +
+        'data-bucket="' + esc(bn) + '" ' +
+        'onclick="onBucketTagClick(this, \\'' + inputId + '\\')">' + esc(bn) + '</span>';
+    }
+  } else {
+    html += '<span style="font-size:12px;color:var(--hint)">' + esc(t('no_buckets')) + '</span>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function onBucketAllToggle(inputId) {
+  var cb = document.getElementById(inputId + 'All');
+  var tags = document.getElementById(inputId + 'Tags');
+  var inp = document.getElementById(inputId);
+  if (cb.checked) {
+    inp.value = '*';
+    tags.style.opacity = '0.4';
+    tags.style.pointerEvents = 'none';
+  } else {
+    tags.style.opacity = '1';
+    tags.style.pointerEvents = 'auto';
+    syncBucketInput(inputId);
+  }
+}
+
+function onBucketTagClick(el, inputId) {
+  var isActive = el.classList.contains('badge-active');
+  el.classList.toggle('badge-active', !isActive);
+  el.classList.toggle('badge-inactive', isActive);
+  syncBucketInput(inputId);
+}
+
+function syncBucketInput(inputId) {
+  var tags = document.getElementById(inputId + 'Tags');
+  var inp = document.getElementById(inputId);
+  var selected = [];
+  var spans = tags.querySelectorAll('.badge-active');
+  for (var i = 0; i < spans.length; i++) selected.push(spans[i].getAttribute('data-bucket'));
+  inp.value = selected.length > 0 ? selected.join(',') : '*';
+  var cb = document.getElementById(inputId + 'All');
+  if (selected.length === 0 && !cb.checked) { cb.checked = true; onBucketAllToggle(inputId); }
+}
+
 function showCreateKey() {
   showModal(
     '<span class="modal-close" role="button" aria-label="Close" onclick="closeModal()">&times;</span>' +
@@ -1510,11 +1572,7 @@ function showCreateKey() {
         '<option value="readonly">' + esc(t('key_perm_readonly')) + '</option>' +
       '</select>' +
     '</div>' +
-    '<div class="form-group">' +
-      '<label>' + esc(t('key_buckets_input_label')) + '</label>' +
-      '<input type="text" id="keyBuckets" value="*" placeholder="*">' +
-      '<div style="font-size:11px;color:var(--hint);margin-top:4px">' + esc(t('key_buckets_hint')) + '</div>' +
-    '</div>' +
+    buildBucketSelector('*', 'keyBuckets') +
     '<button class="btn" style="width:100%;margin-top:8px" id="createKeyBtn" onclick="doCreateKey()">' + esc(t('create')) + '</button>'
   );
 }
@@ -1554,7 +1612,7 @@ async function doCreateKey() {
   }
 }
 
-function showEditKey(accessKeyId, name, permission, buckets) {
+function showEditKey(accessKeyId, name, permission, editBuckets) {
   showModal(
     '<span class="modal-close" role="button" aria-label="Close" onclick="closeModal()">&times;</span>' +
     '<h3>' + esc(t('key_edit_title')) + '</h3>' +
@@ -1570,11 +1628,7 @@ function showEditKey(accessKeyId, name, permission, buckets) {
         '<option value="readonly"' + (permission === 'readonly' ? ' selected' : '') + '>' + esc(t('key_perm_readonly')) + '</option>' +
       '</select>' +
     '</div>' +
-    '<div class="form-group">' +
-      '<label>' + esc(t('key_buckets_input_label')) + '</label>' +
-      '<input type="text" id="editKeyBuckets" value="' + esc(buckets) + '">' +
-      '<div style="font-size:11px;color:var(--hint);margin-top:4px">' + esc(t('key_buckets_hint')) + '</div>' +
-    '</div>' +
+    buildBucketSelector(editBuckets, 'editKeyBuckets') +
     '<button class="btn" style="width:100%;margin-top:8px" id="saveKeyBtn" onclick="doSaveKey(\\'' + escJs(accessKeyId) + '\\')">' + esc(t('save')) + '</button>'
   );
 }
