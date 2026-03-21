@@ -232,12 +232,12 @@ deploy_cf() {
     log "R2 lifecycle 规则已设置"
   fi
 
-  # 初始化数据库 schema
-  step "初始化 D1 数据库 schema"
-  if npx wrangler d1 execute tg-s3-db --remote --file=src/storage/schema.sql --yes 2>&1; then
-    log "数据库 schema 已应用"
+  # 应用数据库迁移
+  step "应用 D1 数据库迁移"
+  if npx wrangler d1 migrations apply tg-s3-db --remote 2>&1; then
+    log "数据库迁移已应用"
   else
-    warn "数据库 schema 应用可能失败 (如果表已存在则可忽略)"
+    warn "数据库迁移可能失败 (如果已是最新则可忽略)"
   fi
 
   # 设置 secrets
