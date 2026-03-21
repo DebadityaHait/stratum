@@ -52,6 +52,12 @@ set -a
 source .env
 set +a
 
+# 兼容旧版 CF_ACCOUNT_ID (wrangler 4.x 要求 CLOUDFLARE_ACCOUNT_ID)
+if [ -n "${CF_ACCOUNT_ID:-}" ] && [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+  CLOUDFLARE_ACCOUNT_ID="$CF_ACCOUNT_ID"
+  export CLOUDFLARE_ACCOUNT_ID
+fi
+
 # ---- 工具函数 ----
 derive_webhook_secret() {
   node -e "const c=require('crypto');console.log(c.createHmac('sha256',process.env.TG_BOT_TOKEN).update('tg-s3-webhook').digest('hex'))"
@@ -72,7 +78,7 @@ persist_env() {
         echo "$line"
       fi
     done < .env > "$tmpfile"
-    mv "$tmpfile" .env
+    mv "$tmpfile" .env || { rm -f "$tmpfile"; return 1; }
   else
     echo "${key}=${val}" >> .env
   fi
@@ -168,15 +174,17 @@ deploy_cf() {
 
   # R2 lifecycle: 90 天兜底 GC
   step "配置 R2 兜底清理策略 (90 天)"
-  npx wrangler r2 bucket lifecycle add tg-s3-cache \
-    --expire-days 90 \
-    --rule-id "cache-gc" 2>&1 || true
+  npx wrangler r2 bucket lifecycle add tg-s3-cache "cache-gc" \
+    --expire-days 90 2>&1 || true
   log "R2 lifecycle 规则已设置"
 
   # 初始化数据库 schema
   step "初始化 D1 数据库 schema"
-  npx wrangler d1 execute tg-s3-db --remote --file=src/storage/schema.sql --yes 2>&1 || true
-  log "数据库 schema 已应用"
+  if npx wrangler d1 execute tg-s3-db --remote --file=src/storage/schema.sql --yes 2>&1; then
+    log "数据库 schema 已应用"
+  else
+    warn "数据库 schema 应用可能失败 (如果表已存在则可忽略)"
+  fi
 
   # 设置 secrets
   step "配置 Worker secrets"
@@ -218,7 +226,7 @@ deploy_cf() {
     step "注册 Telegram Bot Webhook"
     WEBHOOK_URL="$EFFECTIVE_URL/bot/webhook"
     WEBHOOK_SECRET=$(TG_BOT_TOKEN="$TG_BOT_TOKEN" derive_webhook_secret)
-    WEBHOOK_RES=$(curl -sf "https://api.telegram.org/bot${TG_BOT_TOKEN}/setWebhook?url=${WEBHOOK_URL}&secret_token=${WEBHOOK_SECRET}" 2>&1) || true
+    WEBHOOK_RES=$(curl -s "https://api.telegram.org/bot${TG_BOT_TOKEN}/setWebhook?url=${WEBHOOK_URL}&secret_token=${WEBHOOK_SECRET}" 2>&1) || true
     if echo "$WEBHOOK_RES" | grep -q '"ok":true'; then
       log "Webhook 注册成功: $WEBHOOK_URL"
     else
@@ -263,10 +271,10 @@ setup_tunnel() {
   local AUTH_HEADER="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
 
   # 获取 Account ID
-  local ACCOUNT_ID="${CF_ACCOUNT_ID:-}"
+  local ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-${CF_ACCOUNT_ID:-}}"
   if [ -z "$ACCOUNT_ID" ]; then
     step "获取 Cloudflare Account ID"
-    ACCOUNT_ID=$(curl -sf "$CF_API/accounts" -H "$AUTH_HEADER" | \
+    ACCOUNT_ID=$(curl -s "$CF_API/accounts" -H "$AUTH_HEADER" | \
       node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.[0]?.id||'')" 2>/dev/null) || ACCOUNT_ID=""
     if [ -z "$ACCOUNT_ID" ]; then
       warn "无法获取 Account ID, 请在 .env 中设置 CF_ACCOUNT_ID"
@@ -278,7 +286,7 @@ setup_tunnel() {
   # 检查是否已有同名 tunnel
   step "检查现有 tunnel"
   local EXISTING=""
-  EXISTING=$(curl -sf "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel?name=tg-s3&is_deleted=false" \
+  EXISTING=$(curl -s "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel?name=tg-s3&is_deleted=false" \
     -H "$AUTH_HEADER" | \
     node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); const t=d.result?.find(t=>t.name==='tg-s3'); console.log(t?.id||'')" 2>/dev/null) || EXISTING=""
 
@@ -291,7 +299,7 @@ setup_tunnel() {
     local TUNNEL_SECRET
     TUNNEL_SECRET=$(openssl rand -base64 32 2>/dev/null || node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
     local CREATE_RESP
-    CREATE_RESP=$(curl -sf -X POST "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel" \
+    CREATE_RESP=$(curl -s -X POST "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel" \
       -H "$AUTH_HEADER" \
       -H "Content-Type: application/json" \
       -d "{\"name\":\"tg-s3\",\"tunnel_secret\":\"$TUNNEL_SECRET\",\"config_src\":\"cloudflare\"}") || CREATE_RESP=""
@@ -307,7 +315,7 @@ setup_tunnel() {
   # 配置 tunnel ingress
   local TUNNEL_HOSTNAME="vps.${CF_CUSTOM_DOMAIN}"
   step "配置 tunnel ingress: $TUNNEL_HOSTNAME -> processor:3000"
-  curl -sf -X PUT "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/configurations" \
+  curl -s -X PUT "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/configurations" \
     -H "$AUTH_HEADER" \
     -H "Content-Type: application/json" \
     -d "{\"config\":{\"ingress\":[{\"hostname\":\"$TUNNEL_HOSTNAME\",\"service\":\"http://processor:3000\",\"originRequest\":{\"noTLSVerify\":true}},{\"service\":\"http_status:404\"}]}}" >/dev/null 2>&1 || true
@@ -318,7 +326,7 @@ setup_tunnel() {
   local ZONE_ID=""
   local DOMAIN="$CF_CUSTOM_DOMAIN"
   while [ -n "$DOMAIN" ] && [ -z "$ZONE_ID" ]; do
-    ZONE_ID=$(curl -sf "$CF_API/zones?name=$DOMAIN" -H "$AUTH_HEADER" | \
+    ZONE_ID=$(curl -s "$CF_API/zones?name=$DOMAIN" -H "$AUTH_HEADER" | \
       node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.[0]?.id||'')" 2>/dev/null) || ZONE_ID=""
     if [ -z "$ZONE_ID" ]; then
       DOMAIN="${DOMAIN#*.}"
@@ -328,18 +336,18 @@ setup_tunnel() {
 
   if [ -n "$ZONE_ID" ]; then
     local EXISTING_DNS
-    EXISTING_DNS=$(curl -sf "$CF_API/zones/$ZONE_ID/dns_records?name=$TUNNEL_HOSTNAME&type=CNAME" \
+    EXISTING_DNS=$(curl -s "$CF_API/zones/$ZONE_ID/dns_records?name=$TUNNEL_HOSTNAME&type=CNAME" \
       -H "$AUTH_HEADER" | \
       node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result?.[0]?.id||'')" 2>/dev/null) || EXISTING_DNS=""
 
     if [ -n "$EXISTING_DNS" ]; then
-      curl -sf -X PUT "$CF_API/zones/$ZONE_ID/dns_records/$EXISTING_DNS" \
+      curl -s -X PUT "$CF_API/zones/$ZONE_ID/dns_records/$EXISTING_DNS" \
         -H "$AUTH_HEADER" \
         -H "Content-Type: application/json" \
         -d "{\"type\":\"CNAME\",\"name\":\"$TUNNEL_HOSTNAME\",\"content\":\"$TUNNEL_ID.cfargotunnel.com\",\"proxied\":true}" >/dev/null 2>&1 || true
       log "DNS 记录已更新: $TUNNEL_HOSTNAME"
     else
-      curl -sf -X POST "$CF_API/zones/$ZONE_ID/dns_records" \
+      curl -s -X POST "$CF_API/zones/$ZONE_ID/dns_records" \
         -H "$AUTH_HEADER" \
         -H "Content-Type: application/json" \
         -d "{\"type\":\"CNAME\",\"name\":\"$TUNNEL_HOSTNAME\",\"content\":\"$TUNNEL_ID.cfargotunnel.com\",\"proxied\":true}" >/dev/null 2>&1 || true
@@ -353,7 +361,7 @@ setup_tunnel() {
   # 获取 tunnel token
   step "获取 tunnel connector token"
   local TOKEN_RESP
-  TOKEN_RESP=$(curl -sf "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/token" \
+  TOKEN_RESP=$(curl -s "$CF_API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/token" \
     -H "$AUTH_HEADER") || TOKEN_RESP=""
   CF_TUNNEL_TOKEN=$(echo "$TOKEN_RESP" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.result||'')" 2>/dev/null) || CF_TUNNEL_TOKEN=""
 
@@ -478,7 +486,7 @@ INSTALL_DOCKER
   fi
 
   # 创建部署目录
-  ssh "$VPS_SSH" "mkdir -p $VPS_DIR"
+  ssh "$VPS_SSH" "mkdir -p \"$VPS_DIR\""
 
   # 上传文件
   step "上传处理服务文件"
@@ -491,7 +499,7 @@ INSTALL_DOCKER
 
   # 上传 .env
   step "配置 VPS 环境变量"
-  ssh "$VPS_SSH" "cat > $VPS_DIR/.env" <<ENV_EOF
+  ssh "$VPS_SSH" "cat > \"$VPS_DIR/.env\"" <<ENV_EOF
 TG_BOT_TOKEN=$TG_BOT_TOKEN
 VPS_SECRET=${VPS_SECRET:-}
 DEFAULT_CHAT_ID=$DEFAULT_CHAT_ID
@@ -503,7 +511,7 @@ ENV_EOF
   # 构建并启动
   step "构建并启动服务"
   ssh "$VPS_SSH" bash <<DEPLOY_CMD
-    cd $VPS_DIR
+    cd "$VPS_DIR"
     docker compose down 2>/dev/null || true
     docker compose build --no-cache
     docker compose up -d

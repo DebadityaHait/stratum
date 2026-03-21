@@ -10,7 +10,7 @@ services:
       - ./.env:/app/.env
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
-      - CF_ACCOUNT_ID=${CF_ACCOUNT_ID:-}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-${CF_ACCOUNT_ID:-}}
     restart: "no"
     profiles:
       - deploy
