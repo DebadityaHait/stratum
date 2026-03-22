@@ -11,6 +11,24 @@ import { parseSseCHeaders, validateKeyMd5, encrypt, addSseMetadata, SseCError, e
 import { BOT_API_GETFILE_LIMIT, VPS_SINGLE_FILE_MAX, WORKER_BODY_LIMIT } from '../constants';
 import { VpsClient } from '../media/vps-client';
 
+/** Parse x-amz-tagging header and validate per S3 spec (key≤128, value≤256, ≤10 tags). */
+function parseTaggingHeader(header: string | null): { key: string; value: string }[] | null {
+  if (!header) return null;
+  const tags = header.split('&').map(pair => {
+    const [k, v] = pair.split('=');
+    return { key: decodeURIComponent(k || ''), value: decodeURIComponent(v || '') };
+  }).filter(t => t.key);
+  return tags.length > 0 && tags.length <= 10 ? tags : null;
+}
+
+function validateTagLengths(tags: { key: string; value: string }[]): string | null {
+  for (const t of tags) {
+    if (t.key.length > 128) return `Tag key exceeds 128 characters: ${t.key.slice(0, 20)}...`;
+    if (t.value.length > 256) return `Tag value exceeds 256 characters for key: ${t.key}`;
+  }
+  return null;
+}
+
 export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const store = new MetadataStore(env);
 
@@ -51,13 +69,14 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
     sysMeta = addSseS3Metadata(sysMeta || {});
   }
 
-  // Validate x-amz-tagging before upload (S3 rejects >10 tags upfront)
-  const taggingHeaderRaw = s3.headers.get('x-amz-tagging');
-  if (taggingHeaderRaw) {
-    const tagCount = taggingHeaderRaw.split('&').filter(p => p.includes('=')).length;
-    if (tagCount > 10) {
-      return errorResponse(400, 'InvalidTag', 'Object tags cannot be greater than 10.');
-    }
+  // Validate x-amz-tagging before upload (S3 rejects >10 tags upfront, key≤128, value≤256)
+  const parsedTags = parseTaggingHeader(s3.headers.get('x-amz-tagging'));
+  if (s3.headers.get('x-amz-tagging') && !parsedTags) {
+    return errorResponse(400, 'InvalidTag', 'Object tags cannot be greater than 10.');
+  }
+  if (parsedTags) {
+    const lengthErr = validateTagLengths(parsedTags);
+    if (lengthErr) return errorResponse(400, 'InvalidTag', lengthErr);
   }
 
   // S3 conditional write (2024-08): If-None-Match: * prevents overwriting existing objects
@@ -84,7 +103,7 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
     }
     return handleLargePutViaVps(
       s3, env, ctx, store, bucket, oldObj,
-      contentType, userMeta, sysMeta, sseParams, !!useSseS3,
+      contentType, userMeta, sysMeta, sseParams, !!useSseS3, parsedTags,
     );
   }
 
@@ -131,6 +150,7 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
       userMetadata: Object.keys(userMeta).length > 0 ? userMeta : undefined,
       systemMetadata: sysMeta,
     }, oldObj);
+    if (parsedTags) ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, parsedTags).catch(() => {}));
     if (oldObj) ctx.waitUntil(cleanupOldObject(s3.bucket, s3.key, oldObj, env));
     ctx.waitUntil(purgeCdnCache(s3.url.origin, s3.bucket, s3.key));
     ctx.waitUntil(purgeR2Cache(env, s3.bucket, s3.key));
@@ -174,16 +194,9 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
     systemMetadata: sysMeta,
   }, oldObj);
 
-  // x-amz-tagging: set tags inline on PutObject (URL-encoded key=value pairs)
-  const taggingHeader = s3.headers.get('x-amz-tagging');
-  if (taggingHeader) {
-    const tags = taggingHeader.split('&').map(pair => {
-      const [k, v] = pair.split('=');
-      return { key: decodeURIComponent(k || ''), value: decodeURIComponent(v || '') };
-    }).filter(t => t.key);
-    if (tags.length > 0 && tags.length <= 10) {
-      ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, tags).catch(() => {}));
-    }
+  // x-amz-tagging: apply pre-validated tags
+  if (parsedTags) {
+    ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, parsedTags).catch(() => {}));
   }
 
   // Async cleanup old TG message + stale derivatives
@@ -226,6 +239,7 @@ async function handleLargePutViaVps(
   contentType: string, userMeta: Record<string, string>,
   sysMeta: Record<string, string> | undefined,
   sseParams: ReturnType<typeof parseSseCHeaders>, useSseS3: boolean,
+  parsedTags: { key: string; value: string }[] | null,
 ): Promise<Response> {
   const vps = new VpsClient(env);
   const contentLength = parseInt(s3.headers.get('content-length') || s3.headers.get('x-amz-decoded-content-length') || '0', 10);
@@ -262,16 +276,9 @@ async function handleLargePutViaVps(
     systemMetadata: sysMeta,
   }, oldObj);
 
-  // Tagging
-  const taggingHeader = s3.headers.get('x-amz-tagging');
-  if (taggingHeader) {
-    const tags = taggingHeader.split('&').map(pair => {
-      const [k, v] = pair.split('=');
-      return { key: decodeURIComponent(k || ''), value: decodeURIComponent(v || '') };
-    }).filter(t => t.key);
-    if (tags.length > 0 && tags.length <= 10) {
-      ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, tags).catch(() => {}));
-    }
+  // x-amz-tagging: apply pre-validated tags
+  if (parsedTags) {
+    ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, parsedTags).catch(() => {}));
   }
 
   // Async cleanup & cache purge

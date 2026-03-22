@@ -250,6 +250,26 @@ export async function handleCopyObject(s3: S3Request, env: Env, ctx: ExecutionCo
     systemMetadata,
   }, oldObj);
 
+  // x-amz-tagging-directive: COPY (default) preserves source tags, REPLACE uses x-amz-tagging header
+  const taggingDirective = (s3.headers.get('x-amz-tagging-directive') || 'COPY').toUpperCase();
+  if (taggingDirective === 'COPY') {
+    const srcTags = await store.getObjectTags(srcBucket, srcKey);
+    if (srcTags.length > 0) {
+      ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, srcTags).catch(() => {}));
+    }
+  } else if (taggingDirective === 'REPLACE') {
+    const taggingHeader = s3.headers.get('x-amz-tagging');
+    if (taggingHeader) {
+      const tags = taggingHeader.split('&').map(pair => {
+        const [k, v] = pair.split('=');
+        return { key: decodeURIComponent(k || ''), value: decodeURIComponent(v || '') };
+      }).filter(t => t.key);
+      if (tags.length > 0 && tags.length <= 10) {
+        ctx.waitUntil(store.putObjectTags(s3.bucket, s3.key, tags).catch(() => {}));
+      }
+    }
+  }
+
   // Async cleanup: delete old TG message + stale derivatives if destination was overwritten
   if (oldObj && oldObj.tg_file_id !== '__zero__' && oldObj.tg_file_id !== tgFileId) {
     const tg = new TelegramClient(env);
