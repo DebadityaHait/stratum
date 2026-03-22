@@ -630,6 +630,9 @@ async function handlePutBucketLifecycle(s3: S3Request, env: Env): Promise<Respon
   const bodyText = await new Response(s3.body).text();
   const rules = parseLifecycleXml(bodyText);
   if (rules.length > 100) return errorResponse(400, 'BadRequest', 'Lifecycle rules cannot exceed 100.');
+  // Validate unique rule IDs (D1 PRIMARY KEY on id would crash the batch otherwise)
+  const idSet = new Set(rules.map(r => r.id));
+  if (idSet.size !== rules.length) return errorResponse(400, 'InvalidArgument', 'Lifecycle rule IDs must be unique.');
   await store.putLifecycleRules(s3.bucket, rules);
   return new Response(null, { status: 200 });
 }
@@ -656,10 +659,12 @@ function parseLifecycleXml(xml: string): Array<{
     const tagValue = ruleXml.match(/<Value>([^<]*)<\/Value>/)?.[1];
     const status = ruleXml.match(/<Status>([^<]*)<\/Status>/)?.[1];
     if (days > 0) {
+      // S3 tag filters require both key and value; drop tag filter if value is missing
+      const hasValidTag = tagKey !== undefined && tagValue !== undefined;
       rules.push({
         id: unescXml(id), prefix: unescXml(prefix), expirationDays: days,
-        tagKey: tagKey ? unescXml(tagKey) : undefined,
-        tagValue: tagValue ? unescXml(tagValue) : undefined,
+        tagKey: hasValidTag ? unescXml(tagKey) : undefined,
+        tagValue: hasValidTag ? unescXml(tagValue) : undefined,
         enabled: status !== 'Disabled',
       });
     }

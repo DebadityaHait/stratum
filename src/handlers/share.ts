@@ -264,7 +264,6 @@ export async function handleShareAccess(request: Request, url: URL, env: Env): P
     return await serveFile(obj, env, 'attachment', request);
   } catch {
     await store.decrementShareDownload(token);
-    const lang = detectLang(request);
     return new Response(renderExpiredPage('download_failed', lang), {
       status: 502, headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });

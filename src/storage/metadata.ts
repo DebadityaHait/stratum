@@ -848,6 +848,7 @@ export class MetadataStore {
     if (!rules.results?.length) return [];
 
     const expired: Array<{ bucket: string; key: string }> = [];
+    const seen = new Set<string>();
     const now = Date.now();
 
     for (const rule of rules.results) {
@@ -892,7 +893,15 @@ export class MetadataStore {
       }
 
       const r = await this.db.prepare(query).bind(...binds).all<{ bucket: string; key: string }>();
-      if (r.results) expired.push(...r.results);
+      if (r.results) {
+        for (const obj of r.results) {
+          const k = `${obj.bucket}\0${obj.key}`;
+          if (!seen.has(k)) {
+            seen.add(k);
+            expired.push(obj);
+          }
+        }
+      }
       if (expired.length >= limit) break;
     }
 
