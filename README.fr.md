@@ -114,7 +114,7 @@ rclone ls tgs3:default
 | Listing | ListObjectsV2, ListObjects (v1) |
 | Multipart | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
 | Buckets | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
-| Auth | AWS SigV4, URL présignées, Bearer token |
+| Auth | AWS SigV4 (multi-identifiants), URL présignées, Bearer token, Telegram initData |
 
 **Non supporté (par conception) :** versioning, ACL, réplication inter-régions. Voir [docs/S3-COMPAT.md](docs/S3-COMPAT.md) pour les détails.
 

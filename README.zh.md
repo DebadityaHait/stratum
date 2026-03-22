@@ -98,7 +98,7 @@ rclone ls tgs3:default
 | 列举 | ListObjectsV2, ListObjects (v1) |
 | 分片上传 | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
 | 存储桶 | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
-| 认证 | AWS SigV4、预签名 URL、Bearer Token |
+| 认证 | AWS SigV4（多凭据）、预签名 URL、Bearer Token、Telegram initData |
 
 **不支持（设计决策）：** 版本控制、ACL、跨区域复制。详见 [docs/S3-COMPAT.md](docs/S3-COMPAT.md)。
 

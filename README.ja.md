@@ -114,7 +114,7 @@ rclone ls tgs3:default
 | 一覧 | ListObjectsV2, ListObjects (v1) |
 | マルチパート | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
 | バケット | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
-| 認証 | AWS SigV4、署名付き URL、Bearer トークン |
+| 認証 | AWS SigV4（マルチ認証情報）、署名付き URL、Bearer トークン、Telegram initData |
 
 **非対応（設計上の判断）：** バージョニング、ACL、クロスリージョンレプリケーション。詳細は [docs/S3-COMPAT.md](docs/S3-COMPAT.md) を参照。
 

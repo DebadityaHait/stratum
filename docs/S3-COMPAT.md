@@ -41,11 +41,13 @@ This document records the compatibility status and deliberate design decisions.
 - **SSE-S3** (Server-Managed Keys): Full support. AES-256-GCM encryption with server-managed master key (`SSE_MASTER_KEY` secret). Headers: `x-amz-server-side-encryption: AES256`. Per-bucket default encryption configurable via miniapp.
 - **SSE-KMS**: Not implemented (no KMS integration).
 
-**SSE-C notes:**
-- Encrypted objects skip CDN and R2 caching (each GET requires the customer key)
-- ETag is always MD5 of plaintext (standard S3 behavior for SSE-C)
+**Encryption notes:**
+- Encrypted objects skip CDN and R2 caching (each GET requires the customer key or server key)
+- ETag is always MD5 of plaintext (standard S3 behavior)
 - CopyObject supports re-encryption: `x-amz-copy-source-server-side-encryption-customer-*` headers for source decryption
-- Multipart: parts are stored unencrypted temporarily; the final consolidated file is encrypted
+- Multipart: parts are stored unencrypted temporarily; the final consolidated file is encrypted on CompleteMultipartUpload
+- Encrypted multipart uploads with combined size >20MB are not supported (Worker memory limit; VPS consolidate cannot encrypt)
+- Image processing variants (`?w=`, `?fmt=`, `?q=` query parameters) are not available for encrypted objects
 
 ## Authentication
 
