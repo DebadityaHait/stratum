@@ -231,7 +231,7 @@ export async function handleGetObject(s3: S3Request, env: Env, ctx?: ExecutionCo
     if (!env.VPS_URL) {
       return errorResponse(503, 'ServiceUnavailable', 'File exceeds 20MB and requires VPS proxy which is not configured.');
     }
-    return downloadViaVps(obj, headers, rangeHeader, env);
+    return downloadViaVps(obj, headers, rangeHeader, env, objEncrypted ? sseParams : null, objEncryptedS3);
   }
 
   // Check range satisfiability before downloading
@@ -342,11 +342,57 @@ async function handlePartNumberGet(
 async function downloadViaVps(
   obj: ObjectRow, headers: Record<string, string>,
   rangeHeader: string | null, env: Env,
+  sseParams: ReturnType<typeof parseSseCHeaders>,
+  encryptedS3: boolean,
 ): Promise<Response> {
   const vps = new VpsClient(env);
+  const needsDecrypt = !!(sseParams || (encryptedS3 && env.SSE_MASTER_KEY));
 
+  // Encrypted files: must download full, decrypt, then slice for ranges
+  // (AES-GCM doesn't support random-access decryption)
+  if (needsDecrypt) {
+    try {
+      const vpsRes = await vps.proxyGet(obj.tg_file_id);
+      let data = await vpsRes.arrayBuffer();
+
+      if (sseParams) {
+        data = await decrypt(data, sseParams.keyBase64);
+      } else if (encryptedS3 && env.SSE_MASTER_KEY) {
+        data = await decryptS3(data, env.SSE_MASTER_KEY);
+      }
+
+      if (rangeHeader) {
+        const range = parseRange(rangeHeader, data.byteLength);
+        if (range === 'unsatisfiable') {
+          return new Response(null, {
+            status: 416,
+            headers: { ...headers, 'Content-Range': `bytes */${data.byteLength}` },
+          });
+        }
+        if (range) {
+          const sliced = data.slice(range.start, range.end + 1);
+          return new Response(sliced, {
+            status: 206,
+            headers: {
+              ...headers,
+              'Content-Length': sliced.byteLength.toString(),
+              'Content-Range': `bytes ${range.start}-${range.end}/${data.byteLength}`,
+            },
+          });
+        }
+      }
+
+      return new Response(data, {
+        status: 200,
+        headers: { ...headers, 'Content-Length': data.byteLength.toString() },
+      });
+    } catch {
+      return errorResponse(503, 'ServiceUnavailable', 'Storage backend temporarily unavailable.');
+    }
+  }
+
+  // Non-encrypted: stream Range directly from VPS
   if (rangeHeader) {
-    // Forward Range request to VPS
     const range = parseRange(rangeHeader, obj.size);
     if (range === 'unsatisfiable') {
       return new Response(null, {
@@ -371,7 +417,7 @@ async function downloadViaVps(
     }
   }
 
-  // Full download via VPS proxy
+  // Full download via VPS proxy (non-encrypted)
   try {
     const vpsRes = await vps.proxyGet(obj.tg_file_id);
     return new Response(vpsRes.body, {
