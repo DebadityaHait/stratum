@@ -94,22 +94,18 @@ app.post('/api/proxy/put', express.raw({ type: '*/*', limit: '2gb' }), async (re
     const chatId = req.headers['x-chat-id'] || req.query.chat_id;
     const filename = req.headers['x-filename'] || req.query.filename || 'file';
     const contentType = req.headers['x-content-type'] || req.query.content_type || 'application/octet-stream';
-
-    // Write to temp file first
-    const tempPath = join(TEMP_DIR, `upload-${randomUUID()}`);
-    await writeFile(tempPath, req.body);
+    const messageThreadId = req.headers['x-message-thread-id'] || req.query.message_thread_id;
 
     // Upload via multipart form
     const form = new FormData();
     form.append('chat_id', chatId);
     form.append('document', new Blob([req.body], { type: contentType }), filename);
+    if (messageThreadId) form.append('message_thread_id', messageThreadId);
 
     const tgRes = await fetch(`${TG_API}/bot${BOT_TOKEN}/sendDocument`, {
       method: 'POST',
       body: form,
     });
-
-    try { unlinkSync(tempPath); } catch {}
 
     if (!tgRes.ok) {
       const text = await tgRes.text();
