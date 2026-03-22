@@ -432,10 +432,13 @@ async function parseAwsChunkedBody(stream: ReadableStream<Uint8Array>): Promise<
     const hexSize = (semiIdx >= 0 ? headerStr.slice(0, semiIdx) : headerStr).trim();
     const chunkSize = parseInt(hexSize, 16);
 
-    if (isNaN(chunkSize) || chunkSize === 0) break;
+    if (isNaN(chunkSize) || chunkSize < 0 || chunkSize === 0) break;
 
     // Read exactly chunkSize bytes + trailing \r\n
-    await fillUntil(chunkSize + 2);
+    if (!await fillUntil(chunkSize + 2)) {
+      // Stream closed mid-chunk: abort to prevent silently truncated data
+      throw new Error('Incomplete chunked transfer: stream closed before chunk data was fully received.');
+    }
     chunks.push(buf.slice(0, chunkSize));
     buf = buf.subarray(chunkSize + 2);
   }
