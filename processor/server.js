@@ -374,19 +374,19 @@ app.post('/api/proxy/get-decrypt', async (req, res) => {
   }
 });
 
-// Consolidate multipart parts: download all parts from TG, combine, upload as single file
+// Consolidate multipart parts: download all parts from TG, combine, optionally encrypt, upload as single file
 app.post('/api/proxy/consolidate', async (req, res) => {
   const tempPath = join(TEMP_DIR, `consolidate-${randomUUID()}`);
+  const encPath = join(TEMP_DIR, `consolidate-enc-${randomUUID()}`);
   try {
-    const { file_ids, chat_id, filename, content_type, message_thread_id } = req.body;
+    const { file_ids, chat_id, filename, content_type, message_thread_id, sse_key, sse_s3_key } = req.body;
     if (!file_ids || !Array.isArray(file_ids) || !chat_id) {
       return res.status(400).json({ error: 'Missing file_ids or chat_id' });
     }
 
     // Download all parts and stream to temp file
     const writeStream = createWriteStream(tempPath);
-    const crypto = await import('crypto');
-    const hash = crypto.createHash('md5');
+    const hash = createHash('md5');
 
     for (const fileId of file_ids) {
       const filePath = await getFilePath(fileId);
@@ -411,14 +411,22 @@ app.post('/api/proxy/consolidate', async (req, res) => {
 
     const etag = hash.digest('hex');
 
+    // Optionally encrypt the consolidated file (SSE-C or SSE-S3)
+    const encryptKey = sse_key || sse_s3_key;
+    let uploadPath = tempPath;
+    if (encryptKey) {
+      await streamEncryptFile(tempPath, encPath, encryptKey);
+      uploadPath = encPath;
+    }
+
     // Upload combined file via Local Bot API
     // Use openAsBlob (Node 20+) to avoid loading entire file into memory; fallback to readFile
     let fileBlob;
     try {
       const { openAsBlob } = await import('node:fs');
-      fileBlob = await openAsBlob(tempPath, { type: content_type });
+      fileBlob = await openAsBlob(uploadPath, { type: content_type });
     } catch {
-      const fileBuffer = await readFile(tempPath);
+      const fileBuffer = await readFile(uploadPath);
       fileBlob = new Blob([fileBuffer], { type: content_type });
     }
     const form = new FormData();
@@ -448,9 +456,10 @@ app.post('/api/proxy/consolidate', async (req, res) => {
       etag,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   } finally {
     try { unlinkSync(tempPath); } catch {}
+    try { unlinkSync(encPath); } catch {}
   }
 });
 

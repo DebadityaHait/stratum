@@ -304,14 +304,13 @@ export async function handleCompleteMultipartUpload(s3: S3Request, env: Env, ctx
       throw e;
     }
   } else {
-    // >20MB: delegate consolidation to VPS
-    // Guard: VPS consolidate cannot encrypt; reject if encryption is required
-    if (uploadSseKeyBase64 || (uploadUseSseS3 && env.SSE_MASTER_KEY)) {
-      return errorResponse(400, 'EntityTooLarge',
-        'Encrypted multipart uploads exceeding 20MB are not supported. Each encrypted multipart upload must have a combined size of 20MB or less.');
-    }
+    // >20MB: delegate consolidation to VPS (with optional encryption)
     try {
-      const result = await consolidateViaVps(sortedParts, bucket.tg_chat_id, upload.key, upload.content_type || 'application/octet-stream', env, bucket.tg_topic_id);
+      const sseOptions: { sseKeyBase64?: string; sseS3KeyBase64?: string } = {};
+      if (uploadSseKeyBase64) sseOptions.sseKeyBase64 = uploadSseKeyBase64;
+      else if (uploadUseSseS3 && env.SSE_MASTER_KEY) sseOptions.sseS3KeyBase64 = env.SSE_MASTER_KEY;
+
+      const result = await consolidateViaVps(sortedParts, bucket.tg_chat_id, upload.key, upload.content_type || 'application/octet-stream', env, bucket.tg_topic_id, sseOptions);
       uploadResult = result;
       // S3 multipart ETag: computed from part ETags, not content hash
       etag = await computeMultipartEtag(sortedParts.map(p => p.etag));
@@ -456,9 +455,10 @@ async function consolidateViaVps(
   parts: Array<{ tg_file_id: string }>,
   chatId: string, filename: string, contentType: string,
   env: Env, messageThreadId?: number | null,
+  sseOptions?: { sseKeyBase64?: string; sseS3KeyBase64?: string },
 ): Promise<UploadResult> {
   const vps = new VpsClient(env);
-  const res = await vps.consolidate(parts.map(p => p.tg_file_id), chatId, filename, contentType, messageThreadId);
+  const res = await vps.consolidate(parts.map(p => p.tg_file_id), chatId, filename, contentType, messageThreadId, sseOptions);
 
   const data = await res.json() as Record<string, unknown>;
   if (!data.tgChatId || !data.tgMessageId || !data.tgFileId || !data.tgFileUniqueId) {

@@ -213,18 +213,26 @@ export class VpsClient {
     });
   }
 
-  async consolidate(fileIds: string[], chatId: string, filename: string, contentType: string, messageThreadId?: number | null): Promise<Response> {
+  async consolidate(
+    fileIds: string[], chatId: string, filename: string, contentType: string,
+    messageThreadId?: number | null,
+    options?: { sseKeyBase64?: string; sseS3KeyBase64?: string },
+  ): Promise<Response> {
     return this.withRetry(async () => {
+      const body: Record<string, unknown> = {
+        file_ids: fileIds,
+        chat_id: chatId,
+        filename,
+        content_type: contentType,
+        message_thread_id: messageThreadId ?? undefined,
+      };
+      if (options?.sseKeyBase64) body.sse_key = options.sseKeyBase64;
+      if (options?.sseS3KeyBase64) body.sse_s3_key = options.sseS3KeyBase64;
+
       const res = await fetch(`${this.baseUrl}/api/proxy/consolidate`, {
         method: 'POST',
         headers: this.headers(),
-        body: JSON.stringify({
-          file_ids: fileIds,
-          chat_id: chatId,
-          filename,
-          content_type: contentType,
-          message_thread_id: messageThreadId ?? undefined,
-        }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(VPS_LONG_TIMEOUT),
       });
       if (!res.ok) throw new Error(`VPS consolidate failed: ${res.status}`);

@@ -45,9 +45,8 @@ This document records the compatibility status and deliberate design decisions.
 - Encrypted objects skip CDN and R2 caching (each GET requires the customer key or server key)
 - ETag is always MD5 of plaintext (standard S3 behavior)
 - CopyObject supports re-encryption: `x-amz-copy-source-server-side-encryption-customer-*` headers for source decryption
-- Multipart: parts are stored unencrypted temporarily; the final consolidated file is encrypted on CompleteMultipartUpload
-- Encrypted multipart uploads with combined size >20MB are not supported (Worker memory limit; VPS consolidate cannot encrypt)
-- Image processing variants (`?w=`, `?fmt=`, `?q=` query parameters) are not available for encrypted objects
+- Multipart: parts are stored unencrypted temporarily; the final consolidated file is encrypted on CompleteMultipartUpload (<=20MB in Worker, >20MB via VPS)
+- Image processing variants (`?w=`, `?fmt=`, `?q=` query parameters) are not available for encrypted objects (encryption and public image hosting are mutually exclusive use cases)
 
 ## Authentication
 
