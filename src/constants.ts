@@ -18,4 +18,5 @@ export const R2_CACHE_MAX_SIZE = 20 * 1024 * 1024;  // 20MB: aligned with Bot AP
 export const TG_API_TIMEOUT = 25_000; // 25s: leave 5s margin for CF Worker 30s limit
 
 // VPS proxy
-export const VPS_PROXY_TIMEOUT = 25_000; // 25s: same margin as TG API
+export const VPS_PROXY_TIMEOUT = 25_000; // 25s: same margin as TG API (for streaming/API calls)
+export const VPS_LONG_TIMEOUT = 10 * 60 * 1000; // 10 min: for large file upload and consolidate (up to 2GB)

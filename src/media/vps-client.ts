@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { VPS_PROXY_TIMEOUT } from '../constants';
+import { VPS_PROXY_TIMEOUT, VPS_LONG_TIMEOUT } from '../constants';
 
 export interface MediaJobRequest {
   bucket: string;
@@ -145,7 +145,7 @@ export class VpsClient {
         method: 'POST',
         headers,
         body: data,
-        signal: AbortSignal.timeout(VPS_PROXY_TIMEOUT),
+        signal: AbortSignal.timeout(VPS_LONG_TIMEOUT),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -167,7 +167,7 @@ export class VpsClient {
           content_type: contentType,
           message_thread_id: messageThreadId ?? undefined,
         }),
-        signal: AbortSignal.timeout(VPS_PROXY_TIMEOUT),
+        signal: AbortSignal.timeout(VPS_LONG_TIMEOUT),
       });
       if (!res.ok) throw new Error(`VPS consolidate failed: ${res.status}`);
       return res;
