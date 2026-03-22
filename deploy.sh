@@ -124,17 +124,152 @@ persist_env() {
   fi
 }
 
-# ---- 自动生成 secrets (写回 .env) ----
+# ---- 交互式配置 ----
+INTERACTIVE=0
+if [ "$IN_CONTAINER" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+  INTERACTIVE=1
+fi
+
+open_url() {
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    open "$1" 2>/dev/null &
+  elif command -v xdg-open &>/dev/null; then
+    xdg-open "$1" 2>/dev/null &
+  fi
+}
+
+ask_value() {
+  local var_name="$1" prompt="$2" value
+  read -rp "  $prompt: " value
+  if [ -n "$value" ]; then
+    eval "$var_name=\"\$value\""
+    export "$var_name"
+    persist_env "$var_name" "$value"
+  fi
+}
+
+ask_yn() {
+  local prompt="$1" default="${2:-Y}" choice
+  read -rp "$(echo -e "${CYAN}?${NC}") $prompt [${default}]: " choice
+  [[ "${choice:-$default}" =~ ^[Yy]$ ]]
+}
+
+interactive_setup() {
+  step "环境配置检查"
+
+  # -- 必填项 --
+
+  if [ -n "${TG_BOT_TOKEN:-}" ]; then
+    log "TG_BOT_TOKEN ✓"
+  else
+    warn "TG_BOT_TOKEN 未设置 (必填)"
+    echo "  1. Telegram 中找 @BotFather, 发送 /newbot"
+    echo "  2. 按提示创建 Bot, 复制生成的 Token"
+    if [ "$INTERACTIVE" -eq 1 ]; then
+      open_url "https://t.me/BotFather"
+      ask_value TG_BOT_TOKEN "请输入 Bot Token"
+    fi
+  fi
+
+  if [ -n "${DEFAULT_CHAT_ID:-}" ]; then
+    log "DEFAULT_CHAT_ID ✓"
+  else
+    warn "DEFAULT_CHAT_ID 未设置 (必填)"
+    echo "  1. 创建 Telegram 群组, 将 Bot 添加为管理员"
+    echo "  2. 在群组中发送一条消息"
+    if [ -n "${TG_BOT_TOKEN:-}" ]; then
+      echo "  3. 打开以下链接, 在 JSON 中找 chat.id:"
+      echo "     https://api.telegram.org/bot${TG_BOT_TOKEN}/getUpdates"
+      if [ "$INTERACTIVE" -eq 1 ]; then
+        open_url "https://api.telegram.org/bot${TG_BOT_TOKEN}/getUpdates"
+      fi
+    else
+      echo "  3. 先设置 TG_BOT_TOKEN, 再用 getUpdates API 获取"
+    fi
+    if [ "$INTERACTIVE" -eq 1 ]; then
+      ask_value DEFAULT_CHAT_ID "请输入 Chat ID (如 -1001234567890)"
+    fi
+  fi
+
+  # -- 可选功能 --
+
+  if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    log "CLOUDFLARE_API_TOKEN ✓"
+  elif [ "$INTERACTIVE" -eq 1 ]; then
+    echo ""
+    if ask_yn "配置 Cloudflare API Token? (Docker 部署必填)" "Y"; then
+      echo "  1. 创建自定义 API Token"
+      echo "  2. 权限: Workers Scripts:Edit, D1:Edit, R2:Edit, Account Settings:Read"
+      echo "     如需 tunnel: 追加 Cloudflare Tunnel:Edit, DNS:Edit"
+      open_url "https://dash.cloudflare.com/profile/api-tokens"
+      ask_value CLOUDFLARE_API_TOKEN "请输入 API Token"
+    fi
+  fi
+
+  if [ -n "${CF_CUSTOM_DOMAIN:-}" ]; then
+    log "CF_CUSTOM_DOMAIN = ${CF_CUSTOM_DOMAIN} ✓"
+  elif [ "$INTERACTIVE" -eq 1 ]; then
+    echo ""
+    if ask_yn "使用自定义域名? (同时启用 Cloudflare Tunnel)" "Y"; then
+      ask_value CF_CUSTOM_DOMAIN "请输入域名 (如 s3.example.com)"
+    fi
+  fi
+
+  if [ -n "${TELEGRAM_API_ID:-}" ] && [ -n "${TELEGRAM_API_HASH:-}" ]; then
+    log "Telegram Local Bot API ✓ (2GB 文件支持)"
+  elif [ "$INTERACTIVE" -eq 1 ]; then
+    echo ""
+    echo "  Local Bot API 可将文件大小限制从 20MB 提升到 2GB"
+    if ask_yn "启用 Telegram Local Bot API?" "Y"; then
+      echo "  1. 用手机号登录 my.telegram.org"
+      echo "  2. 选择 'API development tools'"
+      echo "  3. 创建应用, 获取 api_id 和 api_hash"
+      open_url "https://my.telegram.org"
+      ask_value TELEGRAM_API_ID "请输入 API ID (纯数字)"
+      ask_value TELEGRAM_API_HASH "请输入 API Hash"
+    fi
+  fi
+
+  echo ""
+}
+
+# 宿主机上运行交互式引导 (容器内跳过)
+if [ "$IN_CONTAINER" -eq 0 ]; then
+  interactive_setup
+fi
+
+# ---- 自动生成 secrets ----
 if [ -z "${VPS_SECRET:-}" ]; then
   VPS_SECRET="$(gen_random 48)"
   persist_env VPS_SECRET "$VPS_SECRET"
-  log "自动生成 VPS_SECRET (已写入 .env)"
+  log "自动生成 VPS_SECRET"
 fi
-
 if [ -z "${SSE_MASTER_KEY:-}" ]; then
   SSE_MASTER_KEY="$(openssl rand -base64 32)"
   persist_env SSE_MASTER_KEY "$SSE_MASTER_KEY"
-  log "自动生成 SSE_MASTER_KEY (已写入 .env)"
+  log "自动生成 SSE_MASTER_KEY"
+fi
+
+# ---- Telegram Local Bot API 检测 ----
+HAS_LOCAL_API=0
+if [ -n "${TELEGRAM_API_ID:-}" ] && [ -n "${TELEGRAM_API_HASH:-}" ]; then
+  HAS_LOCAL_API=1
+  TG_LOCAL_API="http://telegram-bot-api:8081"
+  persist_env TG_LOCAL_API "$TG_LOCAL_API"
+  log "启用 Local Bot API (2GB 文件支持)"
+elif [ -n "${TELEGRAM_API_ID:-}" ] || [ -n "${TELEGRAM_API_HASH:-}" ]; then
+  # 只填了一个, 提醒用户补全
+  warn "TELEGRAM_API_ID 和 TELEGRAM_API_HASH 必须同时设置, 当前只设了其中一个"
+  warn "Local Bot API 未启用, 文件大小限制 20MB"
+  TG_LOCAL_API="https://api.telegram.org"
+else
+  if [ -z "${TG_LOCAL_API:-}" ]; then
+    TG_LOCAL_API="https://api.telegram.org"
+  fi
+  # 非交互模式下给出提示 (交互模式已在 interactive_setup 中处理)
+  if [ "$INTERACTIVE" -eq 0 ] && [ "$IN_CONTAINER" -eq 0 ]; then
+    warn "未配置 TELEGRAM_API_ID/HASH, 文件大小限制 20MB"
+  fi
 fi
 
 # ---- 校验必填项 ----
@@ -147,7 +282,7 @@ validate_required() {
     fi
   done
   if [ $missing -eq 1 ]; then
-    err "请在 .env 中填写所有必填项"
+    err "请在 .env 中填写必填项, 或重新运行 ./deploy.sh 进行交互式配置"
     exit 1
   fi
 }
@@ -511,11 +646,31 @@ deploy_docker() {
 
   # 启动常驻服务
   step "启动服务"
+  COMPOSE_PROFILES=""
   if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
-    docker compose --profile tunnel up -d
-    log "processor + tunnel 已启动"
+    COMPOSE_PROFILES="$COMPOSE_PROFILES --profile tunnel"
+  fi
+  if [ "$HAS_LOCAL_API" -eq 1 ]; then
+    COMPOSE_PROFILES="$COMPOSE_PROFILES --profile localapi"
+  fi
+
+  if [ -n "$COMPOSE_PROFILES" ]; then
+    docker compose $COMPOSE_PROFILES up -d
   else
     docker compose up -d processor
+  fi
+
+  # 状态提示
+  if [ -n "${CF_TUNNEL_TOKEN:-}" ] && [ "$HAS_LOCAL_API" -eq 1 ]; then
+    log "processor + tunnel + telegram-bot-api 已启动 (2GB 文件支持)"
+  elif [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
+    log "processor + tunnel 已启动"
+    warn "未启用 Local Bot API, 文件大小限制 20MB"
+  elif [ "$HAS_LOCAL_API" -eq 1 ]; then
+    docker compose --profile localapi up -d
+    warn "未配置 Cloudflare Tunnel (缺少 CF_CUSTOM_DOMAIN 或 API Token 权限不足)"
+    warn "processor + telegram-bot-api 已启动但外部无法访问"
+  else
     warn "未配置 Cloudflare Tunnel (缺少 CF_CUSTOM_DOMAIN 或 API Token 权限不足)"
     warn "processor 已启动但外部无法访问"
     warn "如需 tunnel，请设置 CF_CUSTOM_DOMAIN 后重新运行 ./deploy.sh"
@@ -593,19 +748,26 @@ TG_BOT_TOKEN=$TG_BOT_TOKEN
 VPS_SECRET=${VPS_SECRET:-}
 DEFAULT_CHAT_ID=$DEFAULT_CHAT_ID
 TG_LOCAL_API=${TG_LOCAL_API:-https://api.telegram.org}
+TELEGRAM_API_ID=${TELEGRAM_API_ID:-}
+TELEGRAM_API_HASH=${TELEGRAM_API_HASH:-}
 PORT=${VPS_PORT:-3000}
 ENV_EOF
   log "VPS 环境变量已配置"
 
   # 构建并启动
   step "构建并启动服务"
+  local VPS_PROFILES=""
+  if [ "$HAS_LOCAL_API" -eq 1 ]; then
+    VPS_PROFILES="--profile localapi"
+  fi
+
   ssh "$VPS_SSH" bash <<DEPLOY_CMD
     cd "$VPS_DIR"
     docker compose down 2>/dev/null || true
     docker compose build --no-cache
-    docker compose up -d
+    docker compose $VPS_PROFILES up -d
     echo "--- 服务状态 ---"
-    docker compose ps
+    docker compose $VPS_PROFILES ps
 DEPLOY_CMD
   log "VPS 处理服务已启动"
 

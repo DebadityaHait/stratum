@@ -120,6 +120,18 @@ services:
     restart: "no"
     profiles: [deploy]
 
+  # Telegram Local Bot API: 解除文件大小限制 (20MB -> 2GB)
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_LOCAL=1
+    volumes:
+      - tg-bot-api-data:/var/lib/telegram-bot-api
+    profiles: [localapi]
+
   # 媒体处理 + 大文件代理服务 (常驻)
   # Tunnel 通过 Docker 内部网络访问, 无需暴露宿主机端口
   processor:
@@ -147,6 +159,7 @@ services:
 
 volumes:
   processor-data:
+  tg-bot-api-data:
 ```
 
 ### deploy.sh 编排流程 (Docker 模式)

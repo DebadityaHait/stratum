@@ -18,6 +18,7 @@
 | 変数 | 説明 | 生成元 |
 |------|------|--------|
 | `VPS_SECRET` | Worker とプロセッサ間の認証シークレット | `deploy.sh`（ランダム 48 文字） |
+| `SSE_MASTER_KEY` | SSE-S3 サーバー管理暗号化の Base64 キー。deploy.sh が自動生成。 | `deploy.sh` |
 | S3 認証情報 | S3 API 認証用のアクセスキー + シークレットキー | `deploy.sh`（D1 `credentials` テーブルに作成） |
 | Webhook シークレット | Telegram Webhook 検証用シークレット | `TG_BOT_TOKEN` から HMAC-SHA256 で導出 |
 
@@ -43,7 +44,8 @@ API トークン権限：Workers Scripts:Edit、D1:Edit、R2:Edit、Account Sett
 | `VPS_PORT` | プロセッササービスのポート | `3000` |
 | `VPS_URL` | VPS プロセッサの公開 URL（トンネル使用時は自動設定） | -- |
 | `VPS_SECRET` | Worker とプロセッサ間の認証シークレット（自動生成） | -- |
-| `TG_LOCAL_API` | Telegram Local Bot API エンドポイント | `https://api.telegram.org` |
+| `TELEGRAM_API_ID` | Local Bot API 用の Telegram API ID（https://my.telegram.org から取得）。2GB ファイルサポートを有効化。 | -- |
+| `TELEGRAM_API_HASH` | Local Bot API 用の Telegram API Hash（https://my.telegram.org から取得） | -- |
 
 ### Worker ランタイム
 

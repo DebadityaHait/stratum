@@ -44,7 +44,8 @@ API token permissions: Workers Scripts:Edit, D1:Edit, R2:Edit, Account Settings:
 | `VPS_PORT` | Processor service port | `3000` |
 | `VPS_URL` | Public URL of the VPS processor (auto-set when using tunnel) | -- |
 | `VPS_SECRET` | Auth secret between Worker and processor (auto-generated) | -- |
-| `TG_LOCAL_API` | Telegram Local Bot API endpoint | `https://api.telegram.org` |
+| `TELEGRAM_API_ID` | Telegram API ID for Local Bot API (from https://my.telegram.org). Enables 2GB file support. | -- |
+| `TELEGRAM_API_HASH` | Telegram API Hash for Local Bot API (from https://my.telegram.org) | -- |
 
 ### Worker Runtime
 

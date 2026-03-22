@@ -1049,7 +1049,7 @@ function handleCors(): Response {
 function addCorsHeaders(response: Response): Response {
   const newHeaders = new Headers(response.headers);
   newHeaders.set('Access-Control-Allow-Origin', '*');
-  newHeaders.set('Access-Control-Expose-Headers', 'ETag, Content-Length, Content-Range, Last-Modified, Accept-Ranges, Content-Disposition, Content-Encoding, x-amz-request-id, x-amz-id-2, x-amz-error-code, x-amz-error-message, x-amz-mp-parts-count, x-amz-bucket-region, x-amz-meta-*, Retry-After, Location, Date');
+  newHeaders.set('Access-Control-Expose-Headers', 'ETag, Content-Length, Content-Range, Last-Modified, Accept-Ranges, Content-Disposition, Content-Encoding, x-amz-request-id, x-amz-id-2, x-amz-error-code, x-amz-error-message, x-amz-mp-parts-count, x-amz-bucket-region, x-amz-server-side-encryption, x-amz-server-side-encryption-customer-algorithm, x-amz-server-side-encryption-customer-key-MD5, x-amz-meta-*, Retry-After, Location, Date');
   // S3 includes Date in all responses; AWS SDKs use it for clock skew detection
   if (!newHeaders.has('Date')) {
     newHeaders.set('Date', new Date().toUTCString());

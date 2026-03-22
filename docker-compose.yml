@@ -15,6 +15,24 @@ services:
     profiles:
       - deploy
 
+  # Telegram Local Bot API: 解除文件大小限制 (20MB -> 2GB)
+  # 需要 TELEGRAM_API_ID 和 TELEGRAM_API_HASH (从 https://my.telegram.org 获取)
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_LOCAL=1
+    volumes:
+      - tg-bot-api-data:/var/lib/telegram-bot-api
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    profiles:
+      - localapi
+
   # VPS 本地处理服务 (大文件 + 媒体处理)
   # Tunnel 和 Caddy 均通过 Docker 内部网络访问, 无需暴露宿主机端口
   # 调试时如需直连: docker compose run -p 3000:3000 processor
@@ -47,19 +65,6 @@ services:
     profiles:
       - tunnel
 
-  # Optional: Telegram Local Bot API Server for 2GB file support
-  # telegram-bot-api:
-  #   image: aiogram/telegram-bot-api:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     - TELEGRAM_API_ID=${TELEGRAM_API_ID}
-  #     - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
-  #     - TELEGRAM_LOCAL=1
-  #   ports:
-  #     - "127.0.0.1:8081:8081"
-  #   volumes:
-  #     - tg-bot-api-data:/var/lib/telegram-bot-api
-
 volumes:
   processor-data:
-  # tg-bot-api-data:
+  tg-bot-api-data:

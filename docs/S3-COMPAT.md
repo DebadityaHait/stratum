@@ -94,7 +94,7 @@ Unsupported S3 sub-resource operations (`?acl`, `?policy`, `?cors`, `?encryption
 
 These are inherent to the Telegram storage backend:
 
-- **Single object size limit**: 2GB (Local Bot API) or 50MB (standard Bot API upload) / 20MB (standard Bot API download)
+- **Single object size limit**: 2GB (Local Bot API) or 20MB (standard Bot API)
 - **SSE-KMS is not available** (no KMS integration). SSE-C and SSE-S3 are fully supported.
 - **No storage classes**: All objects are effectively STANDARD
 - **No object locking / retention**: Not applicable to Telegram storage

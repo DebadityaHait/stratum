@@ -44,7 +44,8 @@ API token 权限：Workers Scripts:Edit、D1:Edit、R2:Edit、Account Settings:R
 | `VPS_PORT` | Processor 服务端口 | `3000` |
 | `VPS_URL` | VPS processor 的公网 URL（使用 tunnel 时自动设置） | -- |
 | `VPS_SECRET` | Worker 与 processor 之间的认证密钥（自动生成） | -- |
-| `TG_LOCAL_API` | Telegram Local Bot API 端点 | `https://api.telegram.org` |
+| `TELEGRAM_API_ID` | Telegram API ID，用于 Local Bot API（从 https://my.telegram.org 获取），启用 2GB 文件支持 | -- |
+| `TELEGRAM_API_HASH` | Telegram API Hash，用于 Local Bot API（从 https://my.telegram.org 获取） | -- |
 
 ### Worker 运行时
 
