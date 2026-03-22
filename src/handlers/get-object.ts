@@ -348,43 +348,36 @@ async function downloadViaVps(
   const vps = new VpsClient(env);
   const needsDecrypt = !!(sseParams || (encryptedS3 && env.SSE_MASTER_KEY));
 
-  // Encrypted files: must download full, decrypt, then slice for ranges
-  // (AES-GCM doesn't support random-access decryption)
+  // Encrypted files: VPS decrypts and streams back (no Worker memory buffering)
   if (needsDecrypt) {
     try {
-      const vpsRes = await vps.proxyGet(obj.tg_file_id);
-      let data = await vpsRes.arrayBuffer();
-
-      if (sseParams) {
-        data = await decrypt(data, sseParams.keyBase64);
-      } else if (encryptedS3 && env.SSE_MASTER_KEY) {
-        data = await decryptS3(data, env.SSE_MASTER_KEY);
-      }
+      const keyBase64 = sseParams ? sseParams.keyBase64 : env.SSE_MASTER_KEY!;
 
       if (rangeHeader) {
-        const range = parseRange(rangeHeader, data.byteLength);
+        const range = parseRange(rangeHeader, obj.size);
         if (range === 'unsatisfiable') {
           return new Response(null, {
             status: 416,
-            headers: { ...headers, 'Content-Range': `bytes */${data.byteLength}` },
+            headers: { ...headers, 'Content-Range': `bytes */${obj.size}` },
           });
         }
         if (range) {
-          const sliced = data.slice(range.start, range.end + 1);
-          return new Response(sliced, {
+          const vpsRes = await vps.proxyGetDecrypt(obj.tg_file_id, keyBase64, range.start, range.end);
+          return new Response(vpsRes.body, {
             status: 206,
             headers: {
               ...headers,
-              'Content-Length': sliced.byteLength.toString(),
-              'Content-Range': `bytes ${range.start}-${range.end}/${data.byteLength}`,
+              'Content-Length': (range.end - range.start + 1).toString(),
+              'Content-Range': `bytes ${range.start}-${range.end}/${obj.size}`,
             },
           });
         }
       }
 
-      return new Response(data, {
+      const vpsRes = await vps.proxyGetDecrypt(obj.tg_file_id, keyBase64);
+      return new Response(vpsRes.body, {
         status: 200,
-        headers: { ...headers, 'Content-Length': data.byteLength.toString() },
+        headers: { ...headers, 'Content-Length': obj.size.toString() },
       });
     } catch {
       return errorResponse(503, 'ServiceUnavailable', 'Storage backend temporarily unavailable.');

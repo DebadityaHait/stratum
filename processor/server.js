@@ -1,6 +1,7 @@
 import express from 'express';
 import { createReadStream, createWriteStream, unlinkSync, existsSync, mkdirSync } from 'fs';
-import { readFile, writeFile, unlink } from 'fs/promises';
+import { readFile, writeFile, unlink, stat, open as openFile } from 'fs/promises';
+import { createDecipheriv } from 'crypto';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { pipeline } from 'stream/promises';
@@ -166,6 +167,90 @@ app.post('/api/proxy/range', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Download, decrypt, and stream back (for encrypted files >20MB that Worker can't buffer)
+// Uses temp files + streaming decryption to avoid holding entire file in memory.
+// AES-256-GCM format: [12-byte IV][ciphertext][16-byte auth tag]
+app.post('/api/proxy/get-decrypt', async (req, res) => {
+  const encPath = join(TEMP_DIR, `enc-${randomUUID()}`);
+  const decPath = join(TEMP_DIR, `dec-${randomUUID()}`);
+  try {
+    const { file_id, key_base64, range_start, range_end } = req.body;
+    if (!file_id || !key_base64) {
+      return res.status(400).json({ error: 'Missing file_id or key_base64' });
+    }
+
+    // 1. Download encrypted file from TG to temp file (streaming, no memory buffering)
+    const filePath = await getFilePath(file_id);
+    const url = `${TG_API}/file/bot${BOT_TOKEN}/${filePath}`;
+    const tgRes = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_TRANSFER) });
+    if (!tgRes.ok) return res.status(502).json({ error: `TG download failed: ${tgRes.status}` });
+
+    const ws = createWriteStream(encPath);
+    const reader = tgRes.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      ws.write(Buffer.from(value));
+    }
+    await new Promise((resolve, reject) => { ws.end(resolve); ws.on('error', reject); });
+
+    // 2. Read IV (first 12 bytes) and auth tag (last 16 bytes) from encrypted file
+    const encStat = await stat(encPath);
+    const encSize = encStat.size;
+    if (encSize < 28) return res.status(500).json({ error: 'Encrypted data too short' });
+
+    const fh = await openFile(encPath, 'r');
+    const ivBuf = Buffer.alloc(12);
+    await fh.read(ivBuf, 0, 12, 0);
+    const authTagBuf = Buffer.alloc(16);
+    await fh.read(authTagBuf, 0, 16, encSize - 16);
+    await fh.close();
+
+    // 3. Stream-decrypt ciphertext to another temp file
+    const keyBuf = Buffer.from(key_base64, 'base64');
+    const decipher = createDecipheriv('aes-256-gcm', keyBuf, ivBuf);
+    decipher.setAuthTag(authTagBuf);
+
+    // Ciphertext is between IV and auth tag
+    const cipherStream = createReadStream(encPath, { start: 12, end: encSize - 17 });
+    const decStream = createWriteStream(decPath);
+
+    try {
+      await pipeline(cipherStream, decipher, decStream);
+    } catch {
+      return res.status(403).json({ error: 'Decryption failed. The provided encryption key does not match.' });
+    }
+
+    // 4. Serve decrypted file (with optional range support)
+    const decStat = await stat(decPath);
+    const decSize = decStat.size;
+
+    if (range_start !== undefined && range_end !== undefined) {
+      const start = parseInt(range_start, 10);
+      const end = Math.min(parseInt(range_end, 10), decSize - 1);
+      if (start > end || start >= decSize) {
+        return res.status(416).json({ error: 'Range not satisfiable' });
+      }
+      res.set('Content-Range', `bytes ${start}-${end}/${decSize}`);
+      res.set('Content-Length', (end - start + 1).toString());
+      res.set('X-Decrypted-Size', decSize.toString());
+      res.status(206);
+      const rangeStream = createReadStream(decPath, { start, end });
+      await pipeline(rangeStream, res);
+    } else {
+      res.set('Content-Length', decSize.toString());
+      res.set('X-Decrypted-Size', decSize.toString());
+      const fullStream = createReadStream(decPath);
+      await pipeline(fullStream, res);
+    }
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  } finally {
+    try { unlinkSync(encPath); } catch {}
+    try { unlinkSync(decPath); } catch {}
   }
 });
 

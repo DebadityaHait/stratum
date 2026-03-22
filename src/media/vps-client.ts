@@ -131,6 +131,25 @@ export class VpsClient {
     });
   }
 
+  /** Download and decrypt an encrypted file on the VPS side (streaming, no Worker memory buffering). */
+  async proxyGetDecrypt(fileId: string, keyBase64: string, rangeStart?: number, rangeEnd?: number): Promise<Response> {
+    return this.withRetry(async () => {
+      const body: Record<string, unknown> = { file_id: fileId, key_base64: keyBase64 };
+      if (rangeStart !== undefined && rangeEnd !== undefined) {
+        body.range_start = rangeStart;
+        body.range_end = rangeEnd;
+      }
+      const res = await fetch(`${this.baseUrl}/api/proxy/get-decrypt`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(VPS_LONG_TIMEOUT),
+      });
+      if (!res.ok) throw new Error(`VPS proxy get-decrypt failed: ${res.status}`);
+      return res;
+    });
+  }
+
   async proxyPut(data: ArrayBuffer, chatId: string, filename: string, contentType: string, messageThreadId?: number | null): Promise<Response> {
     return this.withRetry(async () => {
       const headers: Record<string, string> = {
