@@ -118,6 +118,12 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
   // Small file path: buffer body in Worker memory
   const body = await readBody(s3) ?? new ArrayBuffer(0);
 
+  // Verify decoded content length matches actual for chunked transfers
+  if (isChunked && decodedLength > 0 && body.byteLength !== decodedLength) {
+    return errorResponse(400, 'IncompleteBody',
+      `Chunked upload declared ${decodedLength} bytes but received ${body.byteLength}.`);
+  }
+
   // Validate Content-MD5 if provided
   const contentMd5 = s3.headers.get('content-md5');
   if (contentMd5) {
@@ -400,7 +406,7 @@ export async function readBody(s3: S3Request): Promise<ArrayBuffer | null> {
  * Format per chunk: "{hex_size};chunk-signature={sig}\r\n{data}\r\n"
  * Final chunk: "0;chunk-signature={sig}\r\n\r\n"
  */
-async function parseAwsChunkedBody(stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
+async function parseAwsChunkedBody(stream: ReadableStream<Uint8Array>, maxSize = WORKER_BODY_LIMIT): Promise<ArrayBuffer> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let buf = new Uint8Array(0);
@@ -448,6 +454,13 @@ async function parseAwsChunkedBody(stream: ReadableStream<Uint8Array>): Promise<
     const chunkSize = parseInt(hexSize, 16);
 
     if (isNaN(chunkSize) || chunkSize < 0 || chunkSize === 0) break;
+
+    // Guard against memory exhaustion (covers missing x-amz-decoded-content-length)
+    const accumulated = chunks.reduce((s, c) => s + c.length, 0);
+    if (accumulated + chunkSize > maxSize) {
+      reader.releaseLock();
+      throw new Error(`Chunked upload exceeds ${maxSize} byte in-memory limit.`);
+    }
 
     // Read exactly chunkSize bytes + trailing \r\n
     if (!await fillUntil(chunkSize + 2)) {
