@@ -44,8 +44,20 @@ API token 权限：Workers Scripts:Edit、D1:Edit、R2:Edit、Account Settings:R
 | `VPS_PORT` | Processor 服务端口 | `3000` |
 | `VPS_URL` | VPS processor 的公网 URL（使用 tunnel 时自动设置） | -- |
 | `VPS_SECRET` | Worker 与 processor 之间的认证密钥（自动生成） | -- |
-| `TELEGRAM_API_ID` | Telegram API ID，用于 Local Bot API（从 https://my.telegram.org 获取），启用 2GB 文件支持 | -- |
-| `TELEGRAM_API_HASH` | Telegram API Hash，用于 Local Bot API（从 https://my.telegram.org 获取） | -- |
+| `TELEGRAM_API_ID` | Telegram API ID，用于 Local Bot API（获取方式见下方），启用 2GB 文件支持 | -- |
+| `TELEGRAM_API_HASH` | Telegram API Hash，用于 Local Bot API（获取方式见下方） | -- |
+
+**获取 TELEGRAM_API_ID 和 TELEGRAM_API_HASH：**
+
+1. 访问 https://my.telegram.org ，用手机号登录
+2. 点击 "API development tools"
+3. 填写表单创建新应用（以下字段仅为元数据，不影响功能）：
+   - **App title**：随意填写，如 `tg-s3`
+   - **Short name**：5-32 个字母数字，如 `tgs3`
+   - **URL**：留空
+   - **Platform**：选择 `Other`
+   - **Description**：留空
+4. 创建完成后，将 `api_id`（数字）和 `api_hash`（字符串）复制到 `.env` 中
 
 ### Worker 运行时
 

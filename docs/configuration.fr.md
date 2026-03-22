@@ -44,8 +44,20 @@ Permissions du token API : Workers Scripts:Edit, D1:Edit, R2:Edit, Account Setti
 | `VPS_PORT` | Port du service processeur | `3000` |
 | `VPS_URL` | URL publique du processeur VPS (définie automatiquement avec le tunnel) | -- |
 | `VPS_SECRET` | Secret d'authentification entre le Worker et le processeur (généré automatiquement) | -- |
-| `TELEGRAM_API_ID` | ID API Telegram pour l'API Bot locale (depuis https://my.telegram.org). Active le support de fichiers 2 Go. | -- |
-| `TELEGRAM_API_HASH` | Hash API Telegram pour l'API Bot locale (depuis https://my.telegram.org) | -- |
+| `TELEGRAM_API_ID` | ID API Telegram pour l'API Bot locale (voir ci-dessous). Active le support de fichiers 2 Go. | -- |
+| `TELEGRAM_API_HASH` | Hash API Telegram pour l'API Bot locale (voir ci-dessous) | -- |
+
+**Obtenir TELEGRAM_API_ID et TELEGRAM_API_HASH :**
+
+1. Allez sur https://my.telegram.org et connectez-vous avec votre numéro de téléphone
+2. Cliquez sur "API development tools"
+3. Remplissez le formulaire pour créer une application (ces champs sont des métadonnées et n'affectent pas le fonctionnement) :
+   - **App title** : n'importe quoi, par ex. `tg-s3`
+   - **Short name** : 5-32 caractères alphanumériques, par ex. `tgs3`
+   - **URL** : laisser vide
+   - **Platform** : sélectionner `Other`
+   - **Description** : laisser vide
+4. Après la création, copiez `api_id` (nombre) et `api_hash` (chaîne) dans votre `.env`
 
 ### Runtime du Worker
 

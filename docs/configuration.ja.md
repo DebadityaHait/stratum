@@ -44,8 +44,20 @@ API トークン権限：Workers Scripts:Edit、D1:Edit、R2:Edit、Account Sett
 | `VPS_PORT` | プロセッササービスのポート | `3000` |
 | `VPS_URL` | VPS プロセッサの公開 URL（トンネル使用時は自動設定） | -- |
 | `VPS_SECRET` | Worker とプロセッサ間の認証シークレット（自動生成） | -- |
-| `TELEGRAM_API_ID` | Local Bot API 用の Telegram API ID（https://my.telegram.org から取得）。2GB ファイルサポートを有効化。 | -- |
-| `TELEGRAM_API_HASH` | Local Bot API 用の Telegram API Hash（https://my.telegram.org から取得） | -- |
+| `TELEGRAM_API_ID` | Local Bot API 用の Telegram API ID（取得方法は下記参照）。2GB ファイルサポートを有効化。 | -- |
+| `TELEGRAM_API_HASH` | Local Bot API 用の Telegram API Hash（取得方法は下記参照） | -- |
+
+**TELEGRAM_API_ID と TELEGRAM_API_HASH の取得方法：**
+
+1. https://my.telegram.org にアクセスし、電話番号でログイン
+2. 「API development tools」をクリック
+3. フォームに入力してアプリケーションを作成（以下のフィールドはメタデータのみで、機能には影響しません）：
+   - **App title**：任意の名前、例：`tg-s3`
+   - **Short name**：5-32 文字の英数字、例：`tgs3`
+   - **URL**：空欄
+   - **Platform**：`Other` を選択
+   - **Description**：空欄
+4. 作成後、`api_id`（数値）と `api_hash`（文字列）を `.env` にコピー
 
 ### Worker ランタイム
 
