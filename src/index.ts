@@ -336,8 +336,9 @@ export default {
 const ADMIN_CONTEXT: AuthContext = { accessKeyId: '__bearer__', permission: 'admin', buckets: ['*'] };
 
 // Module-level credential cache (persists across requests within the same isolate)
-const credentialCache = new Map<string, { cred: { secret_access_key: string; access_key_id: string; permission: string; buckets: string }; ts: number }>();
+const credentialCache = new Map<string, { cred: { secret_access_key: string; access_key_id: string; permission: string; buckets: string } | null; ts: number }>();
 const CRED_CACHE_TTL = 60_000; // 60 seconds
+const CRED_CACHE_MAX = 200; // cap size to prevent memory exhaustion from random key probes
 
 function buildCredentialResolver(env: Env): CredentialResolver {
   return async (accessKeyId: string) => {
@@ -352,9 +353,19 @@ function buildCredentialResolver(env: Env): CredentialResolver {
       const row = await store.getCredentialByAccessKey(accessKeyId);
       if (row) {
         cred = { secret_access_key: row.secret_access_key, access_key_id: row.access_key_id, permission: row.permission, buckets: row.buckets };
+        if (credentialCache.size >= CRED_CACHE_MAX) {
+          const oldest = credentialCache.keys().next().value!;
+          credentialCache.delete(oldest);
+        }
         credentialCache.set(accessKeyId, { cred, ts: now });
       } else {
-        credentialCache.delete(accessKeyId);
+        // Negative cache: remember that this key doesn't exist to prevent D1 read amplification
+        if (credentialCache.size >= CRED_CACHE_MAX) {
+          // Evict oldest entry
+          const oldest = credentialCache.keys().next().value!;
+          credentialCache.delete(oldest);
+        }
+        credentialCache.set(accessKeyId, { cred: null, ts: now });
         cred = null;
       }
     }

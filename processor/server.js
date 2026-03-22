@@ -103,8 +103,9 @@ app.post('/api/proxy/get', async (req, res) => {
   }
 });
 
-// Upload file to TG via Local Bot API
-app.post('/api/proxy/put', express.raw({ type: '*/*', limit: '2gb' }), async (req, res) => {
+// Upload file to TG via Local Bot API (streams to temp file to avoid OOM on large files)
+app.post('/api/proxy/put', async (req, res) => {
+  const tempPath = join(TEMP_DIR, `put-${randomUUID()}`);
   try {
     const chatId = req.headers['x-chat-id'] || req.query.chat_id;
     if (!chatId) return res.status(400).json({ error: 'Missing X-Chat-Id' });
@@ -112,10 +113,33 @@ app.post('/api/proxy/put', express.raw({ type: '*/*', limit: '2gb' }), async (re
     const contentType = req.headers['x-content-type'] || req.query.content_type || 'application/octet-stream';
     const messageThreadId = req.headers['x-message-thread-id'] || req.query.message_thread_id;
 
-    // Upload via multipart form
+    // Stream body to temp file with backpressure to keep memory bounded
+    const ws = createWriteStream(tempPath);
+    await new Promise((resolve, reject) => {
+      ws.on('error', reject);
+      req.on('error', reject);
+      req.on('data', chunk => {
+        if (!ws.write(chunk)) {
+          req.pause();
+          ws.once('drain', () => req.resume());
+        }
+      });
+      req.on('end', () => ws.end(resolve));
+    });
+
+    // Upload from temp file to TG via multipart form
+    let fileBlob;
+    try {
+      const { openAsBlob } = await import('node:fs');
+      fileBlob = await openAsBlob(tempPath, { type: contentType });
+    } catch {
+      const fileBuffer = await readFile(tempPath);
+      fileBlob = new Blob([fileBuffer], { type: contentType });
+    }
+
     const form = new FormData();
     form.append('chat_id', chatId);
-    form.append('document', new Blob([req.body], { type: contentType }), filename);
+    form.append('document', fileBlob, filename);
     if (messageThreadId) form.append('message_thread_id', messageThreadId);
 
     const tgRes = await fetch(`${TG_API}/bot${BOT_TOKEN}/sendDocument`, {
@@ -139,7 +163,9 @@ app.post('/api/proxy/put', express.raw({ type: '*/*', limit: '2gb' }), async (re
       tgFileUniqueId: doc.file_unique_id,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  } finally {
+    try { unlinkSync(tempPath); } catch {}
   }
 });
 
@@ -187,20 +213,23 @@ app.post('/api/proxy/put-full', async (req, res) => {
 
     if (!chatId) return res.status(400).json({ error: 'Missing X-Chat-Id' });
 
-    // 1. Stream body to temp file, computing MD5 hash simultaneously
+    // 1. Stream body to temp file with backpressure, computing MD5 hash simultaneously
     const ws = createWriteStream(rawPath);
     const hash = createHash('md5');
     let size = 0;
 
     await new Promise((resolve, reject) => {
+      ws.on('error', reject);
+      req.on('error', reject);
       req.on('data', chunk => {
-        ws.write(chunk);
         hash.update(chunk);
         size += chunk.length;
+        if (!ws.write(chunk)) {
+          req.pause();
+          ws.once('drain', () => req.resume());
+        }
       });
       req.on('end', () => ws.end(resolve));
-      req.on('error', reject);
-      ws.on('error', reject);
     });
 
     const digestBuf = hash.digest();

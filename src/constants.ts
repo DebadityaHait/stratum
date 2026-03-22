@@ -14,6 +14,9 @@ export const S3_MAX_PRESIGN_EXPIRES = 604800; // 7 days: S3 presigned URL maximu
 export const R2_CACHE_MIN_SIZE = 64 * 1024;        // 64KB: below this, TG direct download is fast enough
 export const R2_CACHE_MAX_SIZE = 20 * 1024 * 1024;  // 20MB: aligned with Bot API getFile limit (files >20MB go via VPS, not cached to R2)
 
+// Worker memory safety
+export const WORKER_BODY_LIMIT = 100 * 1024 * 1024; // 100MB: safe limit for in-memory body buffering (Workers have 128MB total)
+
 // Telegram API
 export const TG_API_TIMEOUT = 25_000; // 25s: leave 5s margin for CF Worker 30s limit
 

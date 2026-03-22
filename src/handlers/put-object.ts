@@ -8,7 +8,7 @@ import { errorResponse } from '../xml/builder';
 import { purgeCdnCache, purgeR2Cache } from './get-object';
 import { deleteDerivatives, deleteChunks } from './delete-object';
 import { parseSseCHeaders, validateKeyMd5, encrypt, addSseMetadata, SseCError, encryptS3, addSseS3Metadata } from '../utils/sse';
-import { BOT_API_GETFILE_LIMIT, VPS_SINGLE_FILE_MAX } from '../constants';
+import { BOT_API_GETFILE_LIMIT, VPS_SINGLE_FILE_MAX, WORKER_BODY_LIMIT } from '../constants';
 import { VpsClient } from '../media/vps-client';
 
 export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -86,6 +86,14 @@ export async function handlePutObject(s3: S3Request, env: Env, ctx: ExecutionCon
       s3, env, ctx, store, bucket, oldObj,
       contentType, userMeta, sysMeta, sseParams, !!useSseS3,
     );
+  }
+
+  // Reject oversized bodies that would exceed Worker memory limits
+  // (chunked transfers skip the VPS streaming path and must be fully buffered)
+  if (isChunked && estimatedSize > WORKER_BODY_LIMIT) {
+    return errorResponse(400, 'EntityTooLarge',
+      `Chunked upload of ${estimatedSize} bytes exceeds the ${WORKER_BODY_LIMIT} byte in-memory limit. ` +
+      `Use multipart upload for large files, or send with Content-Length header to enable streaming.`);
   }
 
   // Small file path: buffer body in Worker memory
