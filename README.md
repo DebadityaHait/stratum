@@ -4,7 +4,9 @@
 
 ![Live Demo](https://img.shields.io/badge/demo-live-f97316?style=for-the-badge) ![GitHub Stars](https://img.shields.io/github/stars/DebadityaHait/stratum?style=for-the-badge) ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f97316?style=for-the-badge&logo=cloudflare&logoColor=white)
 
-`[Screenshot or architecture diagram placeholder]`
+![Stratum dashboard](media/hero.jpg)
+
+![Stratum storage flow](media/flow.jpg)
 
 ## What it is
 

@@ -1,6 +1,5 @@
 # Deployment Guide
 
-[English](deployment.md) | [ä¸­æ–‡](deployment.zh.md) | [æ—¥æœ¬èªž](deployment.ja.md) | [FranÃ§ais](deployment.fr.md)
 
 ## Deployment Tiers
 

@@ -1,6 +1,5 @@
 # Telegram Bot Commands
 
-[English](bot-commands.md) | [ä¸­æ–‡](bot-commands.zh.md) | [æ—¥æœ¬èªž](bot-commands.ja.md) | [FranÃ§ais](bot-commands.fr.md)
 
 ## Overview
 

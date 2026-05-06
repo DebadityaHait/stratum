@@ -1,6 +1,5 @@
 # Configuration Reference
 
-[English](configuration.md) | [ä¸­æ–‡](configuration.zh.md) | [æ—¥æœ¬èªž](configuration.ja.md) | [FranÃ§ais](configuration.fr.md)
 
 ## Environment Variables
 
