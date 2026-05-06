@@ -260,7 +260,7 @@ export function renderDashboard(): string {
       </a>
       <div class="actions">
         <span class="pill" id="stats-pill"><strong>0</strong> files · 0 B</span>
-        <a class="button" href="#" aria-label="View Stratum on GitHub">GitHub</a>
+        <a class="button" href="https://github.com/DebadityaHait/stratum" aria-label="View Stratum on GitHub">GitHub</a>
       </div>
     </div>
   </header>
@@ -306,7 +306,7 @@ export function renderDashboard(): string {
   <footer>
     <div class="shell foot">
       <span>Built on Cloudflare Workers · D1 · R2 · Telegram Bot API</span>
-      <a href="#">View on GitHub</a>
+      <a href="https://github.com/DebadityaHait/stratum">View on GitHub</a>
     </div>
   </footer>
   <script>
