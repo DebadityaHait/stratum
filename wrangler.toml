@@ -10,7 +10,7 @@ S3_REGION = "us-east-1"
 [[d1_databases]]
 binding = "DB"
 database_name = "stratum-db"
-database_id = "fd191d11-11c0-48dd-9d19-a9b3bbd89425"
+database_id = "3c700793-c1c1-4a9c-ad97-068f7ca9315e"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
