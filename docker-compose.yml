@@ -1,6 +1,6 @@
 services:
-  # CF Worker 部署服务 (一次性, 由 ./deploy.sh 编排调用)
-  # 不会随 docker compose up 自动启动, 需通过 deploy profile 显式调用
+  # CF Worker éƒ¨ç½²æœåŠ¡ (ä¸€æ¬¡æ€§, ç”± ./deploy.sh ç¼–æŽ’è°ƒç”¨)
+  # ä¸ä¼šéš docker compose up è‡ªåŠ¨å¯åŠ¨, éœ€é€šè¿‡ deploy profile æ˜¾å¼è°ƒç”¨
   deploy:
     build:
       context: .
@@ -15,8 +15,8 @@ services:
     profiles:
       - deploy
 
-  # Telegram Local Bot API: 解除文件大小限制 (20MB -> 2GB)
-  # 需要 TELEGRAM_API_ID 和 TELEGRAM_API_HASH (从 https://my.telegram.org 获取)
+  # Telegram Local Bot API: è§£é™¤æ–‡ä»¶å¤§å°é™åˆ¶ (20MB -> 2GB)
+  # éœ€è¦ TELEGRAM_API_ID å’Œ TELEGRAM_API_HASH (ä»Ž https://my.telegram.org èŽ·å–)
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
     restart: unless-stopped
@@ -33,9 +33,9 @@ services:
     profiles:
       - localapi
 
-  # VPS 本地处理服务 (大文件 + 媒体处理)
-  # Tunnel 和 Caddy 均通过 Docker 内部网络访问, 无需暴露宿主机端口
-  # 调试时如需直连: docker compose run -p 3000:3000 processor
+  # VPS æœ¬åœ°å¤„ç†æœåŠ¡ (å¤§æ–‡ä»¶ + åª’ä½“å¤„ç†)
+  # Tunnel å’Œ Caddy å‡é€šè¿‡ Docker å†…éƒ¨ç½‘ç»œè®¿é—®, æ— éœ€æš´éœ²å®¿ä¸»æœºç«¯å£
+  # è°ƒè¯•æ—¶å¦‚éœ€ç›´è¿ž: docker compose run -p 3000:3000 processor
   processor:
     build: ./processor
     restart: unless-stopped
@@ -45,15 +45,15 @@ services:
       - AUTH_SECRET=${VPS_SECRET}
       - TG_LOCAL_API=${TG_LOCAL_API:-https://api.telegram.org}
       - DEFAULT_CHAT_ID=${DEFAULT_CHAT_ID}
-      - TEMP_DIR=/tmp/tg-s3
+      - TEMP_DIR=/tmp/stratum
     volumes:
-      - processor-data:/tmp/tg-s3
+      - processor-data:/tmp/stratum
     deploy:
       resources:
         limits:
           memory: 2G
 
-  # Cloudflare Tunnel: 安全暴露 processor 给 CF Worker, 无需开放公网端口
+  # Cloudflare Tunnel: å®‰å…¨æš´éœ² processor ç»™ CF Worker, æ— éœ€å¼€æ”¾å…¬ç½‘ç«¯å£
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped

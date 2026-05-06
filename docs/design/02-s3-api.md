@@ -1,11 +1,11 @@
-# S3 API 规范
+# S3 API è§„èŒƒ
 
-## 请求路由
+## è¯·æ±‚è·¯ç”±
 
-Worker 通过 HTTP Method + Path + Query Params 判断 S3 操作类型：
+Worker é€šè¿‡ HTTP Method + Path + Query Params åˆ¤æ–­ S3 æ“ä½œç±»åž‹ï¼š
 
 ```typescript
-// 路由伪代码
+// è·¯ç”±ä¼ªä»£ç 
 function routeS3Request(method: string, path: string, query: URLSearchParams): S3Operation {
   const { bucket, key } = parsePath(path);
 
@@ -28,7 +28,7 @@ function routeS3Request(method: string, path: string, query: URLSearchParams): S
   if (key) {
     if (method === 'GET' && query.has('uploadId'))     return 'ListParts';
     if (method === 'GET')                              return 'GetObject';
-    if (method === 'HEAD')                             return 'HeadObject'; // 含子资源检查
+    if (method === 'HEAD')                             return 'HeadObject'; // å«å­èµ„æºæ£€æŸ¥
     if (method === 'PUT' && query.has('partNumber') && hasHeader('x-amz-copy-source'))
                                                         return 'UploadPartCopy';
     if (method === 'PUT' && query.has('partNumber'))    return 'UploadPart';
@@ -43,68 +43,68 @@ function routeS3Request(method: string, path: string, query: URLSearchParams): S
 }
 ```
 
-### 不支持的子资源操作安全网
+### ä¸æ”¯æŒçš„å­èµ„æºæ“ä½œå®‰å…¨ç½‘
 
-路由在匹配数据操作（GetObject/HeadObject/PutObject/DeleteObject）之前，会检查请求是否携带不支持的 S3 子资源查询参数（如 `?acl`, `?policy` 等）。如果匹配到不支持的子资源，返回 `501 NotImplemented` 而非落到数据操作。这防止了客户端发送 `PUT /{bucket}/{key}?acl` 时将 ACL XML body 当作文件内容覆盖写入的数据损坏风险。
+è·¯ç”±åœ¨åŒ¹é…æ•°æ®æ“ä½œï¼ˆGetObject/HeadObject/PutObject/DeleteObjectï¼‰ä¹‹å‰ï¼Œä¼šæ£€æŸ¥è¯·æ±‚æ˜¯å¦æºå¸¦ä¸æ”¯æŒçš„ S3 å­èµ„æºæŸ¥è¯¢å‚æ•°ï¼ˆå¦‚ `?acl`, `?policy` ç­‰ï¼‰ã€‚å¦‚æžœåŒ¹é…åˆ°ä¸æ”¯æŒçš„å­èµ„æºï¼Œè¿”å›ž `501 NotImplemented` è€Œéžè½åˆ°æ•°æ®æ“ä½œã€‚è¿™é˜²æ­¢äº†å®¢æˆ·ç«¯å‘é€ `PUT /{bucket}/{key}?acl` æ—¶å°† ACL XML body å½“ä½œæ–‡ä»¶å†…å®¹è¦†ç›–å†™å…¥çš„æ•°æ®æŸåé£Žé™©ã€‚
 
-已实现的子资源: `tagging`（对象标签）、`lifecycle`（生命周期规则）、`uploads`/`uploadId`（分段上传）。
+å·²å®žçŽ°çš„å­èµ„æº: `tagging`ï¼ˆå¯¹è±¡æ ‡ç­¾ï¼‰ã€`lifecycle`ï¼ˆç”Ÿå‘½å‘¨æœŸè§„åˆ™ï¼‰ã€`uploads`/`uploadId`ï¼ˆåˆ†æ®µä¸Šä¼ ï¼‰ã€‚
 
-拦截的子资源列表: `acl`, `policy`, `cors`, `encryption`, `notification`, `replication`, `website`, `logging`, `analytics`, `metrics`, `inventory`, `accelerate`, `requestPayment`, `object-lock`, `legal-hold`, `retention`, `torrent`, `restore`, `select`, `intelligent-tiering`, `ownershipControls`, `publicAccessBlock`, `versions`。
+æ‹¦æˆªçš„å­èµ„æºåˆ—è¡¨: `acl`, `policy`, `cors`, `encryption`, `notification`, `replication`, `website`, `logging`, `analytics`, `metrics`, `inventory`, `accelerate`, `requestPayment`, `object-lock`, `legal-hold`, `retention`, `torrent`, `restore`, `select`, `intelligent-tiering`, `ownershipControls`, `publicAccessBlock`, `versions`ã€‚
 
-## 路径格式
+## è·¯å¾„æ ¼å¼
 
-支持 Path-style（不支持 Virtual-hosted-style，因为需要通配符 DNS）：
+æ”¯æŒ Path-styleï¼ˆä¸æ”¯æŒ Virtual-hosted-styleï¼Œå› ä¸ºéœ€è¦é€šé…ç¬¦ DNSï¼‰ï¼š
 
 ```
-https://tg-s3.example.com/{bucket}/{key}
-https://tg-s3.example.com/             → ListBuckets
-https://tg-s3.example.com/photos/      → ListObjectsV2 (bucket=photos)
-https://tg-s3.example.com/photos/a.jpg → GetObject (bucket=photos, key=a.jpg)
+https://stratum.example.com/{bucket}/{key}
+https://stratum.example.com/             â†’ ListBuckets
+https://stratum.example.com/photos/      â†’ ListObjectsV2 (bucket=photos)
+https://stratum.example.com/photos/a.jpg â†’ GetObject (bucket=photos, key=a.jpg)
 ```
 
-## 各操作详细规范
+## å„æ“ä½œè¯¦ç»†è§„èŒƒ
 
 ### PutObject
 
 ```
 PUT /{bucket}/{key}
 Headers:
-  Content-Type: application/octet-stream (或实际类型)
+  Content-Type: application/octet-stream (æˆ–å®žé™…ç±»åž‹)
   Content-Length: 12345
-  Content-MD5: base64 (可选, 完整性校验)
-  x-amz-meta-*: 自定义元数据
-  x-amz-tagging: key1=val1&key2=val2 (可选, 最多 10 个标签, key<=128 chars, value<=256 chars)
+  Content-MD5: base64 (å¯é€‰, å®Œæ•´æ€§æ ¡éªŒ)
+  x-amz-meta-*: è‡ªå®šä¹‰å…ƒæ•°æ®
+  x-amz-tagging: key1=val1&key2=val2 (å¯é€‰, æœ€å¤š 10 ä¸ªæ ‡ç­¾, key<=128 chars, value<=256 chars)
   x-amz-server-side-encryption-customer-algorithm: AES256 (SSE-C)
-  x-amz-server-side-encryption: AES256 (SSE-S3, 需配置 SSE_MASTER_KEY)
-Body: 文件内容
+  x-amz-server-side-encryption: AES256 (SSE-S3, éœ€é…ç½® SSE_MASTER_KEY)
+Body: æ–‡ä»¶å†…å®¹
 ```
 
-大小路由：
-- 分块传输编码 (chunked): Worker 内存缓冲, 上限 100MB (WORKER_BODY_LIMIT)
-- <=20MB: Worker 内存缓冲, 通过 Bot API 上传
-- 20MB-2GB: 流式转发到 VPS, VPS 计算 ETag 并上传到 TG Local Bot API
+å¤§å°è·¯ç”±ï¼š
+- åˆ†å—ä¼ è¾“ç¼–ç  (chunked): Worker å†…å­˜ç¼“å†², ä¸Šé™ 100MB (WORKER_BODY_LIMIT)
+- <=20MB: Worker å†…å­˜ç¼“å†², é€šè¿‡ Bot API ä¸Šä¼ 
+- 20MB-2GB: æµå¼è½¬å‘åˆ° VPS, VPS è®¡ç®— ETag å¹¶ä¸Šä¼ åˆ° TG Local Bot API
 
-处理流程：
-1. 验证认证
-2. 检查速率限制
-3. 读取 Content-Type, Content-Length, x-amz-meta-*, x-amz-tagging headers
-4. 验证标签: 最多 10 个, key<=128, value<=256
-5. 支持条件写入: `If-None-Match: *` 阻止覆盖已有对象，返回 412 PreconditionFailed
-6. 计算请求体 MD5 作为 ETag (大文件由 VPS 计算)
-7. 判断大小路由到 TG Bot API 或 VPS
-7. 调用 TG sendDocument:
+å¤„ç†æµç¨‹ï¼š
+1. éªŒè¯è®¤è¯
+2. æ£€æŸ¥é€ŸçŽ‡é™åˆ¶
+3. è¯»å– Content-Type, Content-Length, x-amz-meta-*, x-amz-tagging headers
+4. éªŒè¯æ ‡ç­¾: æœ€å¤š 10 ä¸ª, key<=128, value<=256
+5. æ”¯æŒæ¡ä»¶å†™å…¥: `If-None-Match: *` é˜»æ­¢è¦†ç›–å·²æœ‰å¯¹è±¡ï¼Œè¿”å›ž 412 PreconditionFailed
+6. è®¡ç®—è¯·æ±‚ä½“ MD5 ä½œä¸º ETag (å¤§æ–‡ä»¶ç”± VPS è®¡ç®—)
+7. åˆ¤æ–­å¤§å°è·¯ç”±åˆ° TG Bot API æˆ– VPS
+7. è°ƒç”¨ TG sendDocument:
    ```
    POST https://api.telegram.org/bot{token}/sendDocument
    Content-Type: multipart/form-data
    chat_id: {bucket_channel_id}
-   document: (文件内容)
-   filename: {key} (文件名显示在 TG 消息中)
+   document: (æ–‡ä»¶å†…å®¹)
+   filename: {key} (æ–‡ä»¶åæ˜¾ç¤ºåœ¨ TG æ¶ˆæ¯ä¸­)
    ```
-8. 从 TG 响应提取 file_id, file_unique_id, message_id
-9. INSERT INTO objects ... ON CONFLICT(bucket, key) DO UPDATE（覆盖写）
-10. 如果是覆盖写，删除旧的 TG 消息（异步，可选）
+8. ä»Ž TG å“åº”æå– file_id, file_unique_id, message_id
+9. INSERT INTO objects ... ON CONFLICT(bucket, key) DO UPDATEï¼ˆè¦†ç›–å†™ï¼‰
+10. å¦‚æžœæ˜¯è¦†ç›–å†™ï¼Œåˆ é™¤æ—§çš„ TG æ¶ˆæ¯ï¼ˆå¼‚æ­¥ï¼Œå¯é€‰ï¼‰
 
-响应：
+å“åº”ï¼š
 ```xml
 HTTP/1.1 200 OK
 ETag: "d41d8cd98f00b204e9800998ecf8427e"
@@ -115,48 +115,48 @@ ETag: "d41d8cd98f00b204e9800998ecf8427e"
 ```
 GET /{bucket}/{key}
 Headers:
-  Range: bytes=0-999 (可选)
-  If-Match: "etag" (可选, 不匹配返回 412)
-  If-None-Match: "etag" (可选, 匹配返回 304)
-  If-Modified-Since: <date> (可选, 未修改返回 304)
-  If-Unmodified-Since: <date> (可选, 已修改返回 412)
+  Range: bytes=0-999 (å¯é€‰)
+  If-Match: "etag" (å¯é€‰, ä¸åŒ¹é…è¿”å›ž 412)
+  If-None-Match: "etag" (å¯é€‰, åŒ¹é…è¿”å›ž 304)
+  If-Modified-Since: <date> (å¯é€‰, æœªä¿®æ”¹è¿”å›ž 304)
+  If-Unmodified-Since: <date> (å¯é€‰, å·²ä¿®æ”¹è¿”å›ž 412)
 
 Query Parameters:
-  partNumber=<n>           (可选, 返回多段上传对象的第 n 段, 206 响应)
-  response-content-type    (可选, 覆盖响应 Content-Type)
-  response-content-disposition (可选, 覆盖 Content-Disposition, 如强制下载)
-  response-content-encoding    (可选, 覆盖 Content-Encoding)
-  response-content-language    (可选, 覆盖 Content-Language)
-  response-cache-control       (可选, 覆盖 Cache-Control)
-  response-expires             (可选, 覆盖 Expires)
-  w=<width>    (图片专用, 缩放宽度 1-4096px, 高度按比例)
-  fmt=<format> (图片专用, 格式转换: auto/webp/jpeg/jpg/png/avif)
-  q=<quality>  (图片专用, 质量 1-100)
-  original=1   (图片专用, 跳过自动转换返回原始文件)
+  partNumber=<n>           (å¯é€‰, è¿”å›žå¤šæ®µä¸Šä¼ å¯¹è±¡çš„ç¬¬ n æ®µ, 206 å“åº”)
+  response-content-type    (å¯é€‰, è¦†ç›–å“åº” Content-Type)
+  response-content-disposition (å¯é€‰, è¦†ç›– Content-Disposition, å¦‚å¼ºåˆ¶ä¸‹è½½)
+  response-content-encoding    (å¯é€‰, è¦†ç›– Content-Encoding)
+  response-content-language    (å¯é€‰, è¦†ç›– Content-Language)
+  response-cache-control       (å¯é€‰, è¦†ç›– Cache-Control)
+  response-expires             (å¯é€‰, è¦†ç›– Expires)
+  w=<width>    (å›¾ç‰‡ä¸“ç”¨, ç¼©æ”¾å®½åº¦ 1-4096px, é«˜åº¦æŒ‰æ¯”ä¾‹)
+  fmt=<format> (å›¾ç‰‡ä¸“ç”¨, æ ¼å¼è½¬æ¢: auto/webp/jpeg/jpg/png/avif)
+  q=<quality>  (å›¾ç‰‡ä¸“ç”¨, è´¨é‡ 1-100)
+  original=1   (å›¾ç‰‡ä¸“ç”¨, è·³è¿‡è‡ªåŠ¨è½¬æ¢è¿”å›žåŽŸå§‹æ–‡ä»¶)
 ```
 
-处理流程：
-1. 验证认证（SigV4 / Bearer / 预签名 URL）
-2. 查 D1 获取元数据
-3. 条件请求处理（按 S3 优先级）：
-   - If-Match → 不匹配返回 412
-   - If-Unmodified-Since → 已修改返回 412（If-Match 存在时跳过）
-   - If-None-Match → 匹配返回 304
-   - If-Modified-Since → 未修改返回 304（If-None-Match 存在时跳过）
-4. 三层缓存查找（非 Range 请求，<=20MB）：
-   a. 第 1 层: CDN Cache → ETag 一致则直接返回
-   b. 第 2 层: R2 缓存 (64KB-20MB) → ETag 一致则返回并回填 CDN
-   c. 第 3 层: TG 源站（下载后回填 CDN + R2）
-5. 按文件大小路由下载：
-   a. <=20MB: Worker 调 TG Bot API getFile → 流式返回；Range 请求在 Worker 内切片
-   b. >20MB: Worker 请求 VPS → VPS 通过 Local Bot API 下载 → 流式返回（含 Range 支持）
-6. 图片变体处理（w/fmt/q 参数）：
-   - HEIC/HEIF 自动转换为浏览器兼容格式（除非传 original=1）
-   - fmt=auto 根据 Accept 头选择最优格式（AVIF > WebP > JPEG）
-   - 变体缓存到 D1 + TG，后续请求直接返回
-   - 加密对象不支持图片变体
+å¤„ç†æµç¨‹ï¼š
+1. éªŒè¯è®¤è¯ï¼ˆSigV4 / Bearer / é¢„ç­¾å URLï¼‰
+2. æŸ¥ D1 èŽ·å–å…ƒæ•°æ®
+3. æ¡ä»¶è¯·æ±‚å¤„ç†ï¼ˆæŒ‰ S3 ä¼˜å…ˆçº§ï¼‰ï¼š
+   - If-Match â†’ ä¸åŒ¹é…è¿”å›ž 412
+   - If-Unmodified-Since â†’ å·²ä¿®æ”¹è¿”å›ž 412ï¼ˆIf-Match å­˜åœ¨æ—¶è·³è¿‡ï¼‰
+   - If-None-Match â†’ åŒ¹é…è¿”å›ž 304
+   - If-Modified-Since â†’ æœªä¿®æ”¹è¿”å›ž 304ï¼ˆIf-None-Match å­˜åœ¨æ—¶è·³è¿‡ï¼‰
+4. ä¸‰å±‚ç¼“å­˜æŸ¥æ‰¾ï¼ˆéž Range è¯·æ±‚ï¼Œ<=20MBï¼‰ï¼š
+   a. ç¬¬ 1 å±‚: CDN Cache â†’ ETag ä¸€è‡´åˆ™ç›´æŽ¥è¿”å›ž
+   b. ç¬¬ 2 å±‚: R2 ç¼“å­˜ (64KB-20MB) â†’ ETag ä¸€è‡´åˆ™è¿”å›žå¹¶å›žå¡« CDN
+   c. ç¬¬ 3 å±‚: TG æºç«™ï¼ˆä¸‹è½½åŽå›žå¡« CDN + R2ï¼‰
+5. æŒ‰æ–‡ä»¶å¤§å°è·¯ç”±ä¸‹è½½ï¼š
+   a. <=20MB: Worker è°ƒ TG Bot API getFile â†’ æµå¼è¿”å›žï¼›Range è¯·æ±‚åœ¨ Worker å†…åˆ‡ç‰‡
+   b. >20MB: Worker è¯·æ±‚ VPS â†’ VPS é€šè¿‡ Local Bot API ä¸‹è½½ â†’ æµå¼è¿”å›žï¼ˆå« Range æ”¯æŒï¼‰
+6. å›¾ç‰‡å˜ä½“å¤„ç†ï¼ˆw/fmt/q å‚æ•°ï¼‰ï¼š
+   - HEIC/HEIF è‡ªåŠ¨è½¬æ¢ä¸ºæµè§ˆå™¨å…¼å®¹æ ¼å¼ï¼ˆé™¤éžä¼  original=1ï¼‰
+   - fmt=auto æ ¹æ® Accept å¤´é€‰æ‹©æœ€ä¼˜æ ¼å¼ï¼ˆAVIF > WebP > JPEGï¼‰
+   - å˜ä½“ç¼“å­˜åˆ° D1 + TGï¼ŒåŽç»­è¯·æ±‚ç›´æŽ¥è¿”å›ž
+   - åŠ å¯†å¯¹è±¡ä¸æ”¯æŒå›¾ç‰‡å˜ä½“
 
-响应：
+å“åº”ï¼š
 ```
 HTTP/1.1 200 OK
 Content-Type: image/jpeg
@@ -165,12 +165,12 @@ ETag: "d41d8cd98f00b204e9800998ecf8427e"
 Last-Modified: Mon, 15 Mar 2026 08:00:00 GMT
 Cache-Control: public, max-age=86400
 
-(文件内容流)
+(æ–‡ä»¶å†…å®¹æµ)
 ```
 
 ### HeadObject
 
-同 GetObject 但不返回 body，只返回 headers。直接查 D1，不调 TG API。
+åŒ GetObject ä½†ä¸è¿”å›ž bodyï¼Œåªè¿”å›ž headersã€‚ç›´æŽ¥æŸ¥ D1ï¼Œä¸è°ƒ TG APIã€‚
 
 ### DeleteObject
 
@@ -178,19 +178,19 @@ Cache-Control: public, max-age=86400
 DELETE /{bucket}/{key}
 ```
 
-处理流程：
-1. 验证认证
-2. 查 D1 获取元数据
+å¤„ç†æµç¨‹ï¼š
+1. éªŒè¯è®¤è¯
+2. æŸ¥ D1 èŽ·å–å…ƒæ•°æ®
 3. DELETE FROM objects WHERE bucket=? AND key=?
-4. 异步清理（全部 best-effort，不阻塞 204 响应）：
-   a. 删除 TG 消息
-   b. 删除派生文件 (derivatives)
-   c. 删除分块消息 (chunks)
-   d. 删除关联的分享令牌 (share tokens)
-   e. 清除 CDN 缓存
-   f. 清除 R2 缓存
+4. å¼‚æ­¥æ¸…ç†ï¼ˆå…¨éƒ¨ best-effortï¼Œä¸é˜»å¡ž 204 å“åº”ï¼‰ï¼š
+   a. åˆ é™¤ TG æ¶ˆæ¯
+   b. åˆ é™¤æ´¾ç”Ÿæ–‡ä»¶ (derivatives)
+   c. åˆ é™¤åˆ†å—æ¶ˆæ¯ (chunks)
+   d. åˆ é™¤å…³è”çš„åˆ†äº«ä»¤ç‰Œ (share tokens)
+   e. æ¸…é™¤ CDN ç¼“å­˜
+   f. æ¸…é™¤ R2 ç¼“å­˜
 
-响应：
+å“åº”ï¼š
 ```
 HTTP/1.1 204 No Content
 ```
@@ -201,27 +201,27 @@ HTTP/1.1 204 No Content
 GET /{bucket}?list-type=2&prefix=photos/&delimiter=/&max-keys=1000&continuation-token=xxx
 ```
 
-处理流程：
-1. 验证认证
-2. SQL 查询 D1：
+å¤„ç†æµç¨‹ï¼š
+1. éªŒè¯è®¤è¯
+2. SQL æŸ¥è¯¢ D1ï¼š
    ```sql
    SELECT key, size, etag, last_modified, content_type
    FROM objects
    WHERE bucket = ?
      AND key >= ?           -- prefix
-     AND key < ?            -- prefix 的下一个字典序
+     AND key < ?            -- prefix çš„ä¸‹ä¸€ä¸ªå­—å…¸åº
    ORDER BY key ASC
-   LIMIT ? + 1              -- max-keys + 1（判断是否 truncated）
+   LIMIT ? + 1              -- max-keys + 1ï¼ˆåˆ¤æ–­æ˜¯å¦ truncatedï¼‰
    ```
-3. 如果有 delimiter（通常是 `/`），需要在结果中提取 CommonPrefixes：
+3. å¦‚æžœæœ‰ delimiterï¼ˆé€šå¸¸æ˜¯ `/`ï¼‰ï¼Œéœ€è¦åœ¨ç»“æžœä¸­æå– CommonPrefixesï¼š
    ```typescript
-   // 对于 prefix="photos/", delimiter="/"
-   // key="photos/2024/a.jpg" → CommonPrefix="photos/2024/"
-   // key="photos/b.jpg" → 正常 Contents 条目
+   // å¯¹äºŽ prefix="photos/", delimiter="/"
+   // key="photos/2024/a.jpg" â†’ CommonPrefix="photos/2024/"
+   // key="photos/b.jpg" â†’ æ­£å¸¸ Contents æ¡ç›®
    ```
-4. 生成 XML 响应
+4. ç”Ÿæˆ XML å“åº”
 
-响应：
+å“åº”ï¼š
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
@@ -249,25 +249,25 @@ GET /{bucket}?list-type=2&prefix=photos/&delimiter=/&max-keys=1000&continuation-
 PUT /{dest-bucket}/{dest-key}
 Headers:
   x-amz-copy-source: /{src-bucket}/{src-key}
-  x-amz-metadata-directive: COPY | REPLACE (默认 COPY)
-  x-amz-tagging-directive: COPY | REPLACE (默认 COPY)
-  x-amz-tagging: key1=val1&key2=val2 (仅 tagging-directive=REPLACE 时使用)
+  x-amz-metadata-directive: COPY | REPLACE (é»˜è®¤ COPY)
+  x-amz-tagging-directive: COPY | REPLACE (é»˜è®¤ COPY)
+  x-amz-tagging: key1=val1&key2=val2 (ä»… tagging-directive=REPLACE æ—¶ä½¿ç”¨)
 ```
 
-处理流程：
-1. 解析 `x-amz-copy-source` header（URL 解码，去除 `?versionId=`）
-2. 自身复制保护: 同 bucket 同 key + COPY directive → 返回 400 InvalidRequest（AWS S3 标准行为，不允许不修改元数据的自身复制）
-3. 查 D1 获取源对象元数据，支持条件 copy headers（if-match/if-none-match/if-modified-since/if-unmodified-since）
-4. 检查 `x-amz-metadata-directive`: COPY（默认，保留源元数据）或 REPLACE（使用请求中的新元数据）
-5. 检查 `x-amz-tagging-directive`: COPY（默认，复制源对象标签）或 REPLACE（使用 `x-amz-tagging` header 中的新标签）
-5. 同 bucket: 复用同一个 file_id，仅 INSERT D1 记录
-   - 特殊情况: 0 字节对象 (`__zero__` sentinel) 的 tg_chat_id 指向目标 bucket 的 chat_id
-6. 跨 bucket: 调用 TG `forwardMessage`（含 `message_thread_id`）转发消息到目标频道/话题（受速率限制），获取新的 file_id + message_id
-   - 特殊情况: Bot 上传的文件 (tg_message_id=0) 无频道消息可转发，改用 `sendDocumentByFileId` 重新发送
-7. 如果目标 key 已有对象（覆盖写），异步删除旧 TG 消息
-8. 异步清除目标 key 的 CDN + R2 缓存
+å¤„ç†æµç¨‹ï¼š
+1. è§£æž `x-amz-copy-source` headerï¼ˆURL è§£ç ï¼ŒåŽ»é™¤ `?versionId=`ï¼‰
+2. è‡ªèº«å¤åˆ¶ä¿æŠ¤: åŒ bucket åŒ key + COPY directive â†’ è¿”å›ž 400 InvalidRequestï¼ˆAWS S3 æ ‡å‡†è¡Œä¸ºï¼Œä¸å…è®¸ä¸ä¿®æ”¹å…ƒæ•°æ®çš„è‡ªèº«å¤åˆ¶ï¼‰
+3. æŸ¥ D1 èŽ·å–æºå¯¹è±¡å…ƒæ•°æ®ï¼Œæ”¯æŒæ¡ä»¶ copy headersï¼ˆif-match/if-none-match/if-modified-since/if-unmodified-sinceï¼‰
+4. æ£€æŸ¥ `x-amz-metadata-directive`: COPYï¼ˆé»˜è®¤ï¼Œä¿ç•™æºå…ƒæ•°æ®ï¼‰æˆ– REPLACEï¼ˆä½¿ç”¨è¯·æ±‚ä¸­çš„æ–°å…ƒæ•°æ®ï¼‰
+5. æ£€æŸ¥ `x-amz-tagging-directive`: COPYï¼ˆé»˜è®¤ï¼Œå¤åˆ¶æºå¯¹è±¡æ ‡ç­¾ï¼‰æˆ– REPLACEï¼ˆä½¿ç”¨ `x-amz-tagging` header ä¸­çš„æ–°æ ‡ç­¾ï¼‰
+5. åŒ bucket: å¤ç”¨åŒä¸€ä¸ª file_idï¼Œä»… INSERT D1 è®°å½•
+   - ç‰¹æ®Šæƒ…å†µ: 0 å­—èŠ‚å¯¹è±¡ (`__zero__` sentinel) çš„ tg_chat_id æŒ‡å‘ç›®æ ‡ bucket çš„ chat_id
+6. è·¨ bucket: è°ƒç”¨ TG `forwardMessage`ï¼ˆå« `message_thread_id`ï¼‰è½¬å‘æ¶ˆæ¯åˆ°ç›®æ ‡é¢‘é“/è¯é¢˜ï¼ˆå—é€ŸçŽ‡é™åˆ¶ï¼‰ï¼ŒèŽ·å–æ–°çš„ file_id + message_id
+   - ç‰¹æ®Šæƒ…å†µ: Bot ä¸Šä¼ çš„æ–‡ä»¶ (tg_message_id=0) æ— é¢‘é“æ¶ˆæ¯å¯è½¬å‘ï¼Œæ”¹ç”¨ `sendDocumentByFileId` é‡æ–°å‘é€
+7. å¦‚æžœç›®æ ‡ key å·²æœ‰å¯¹è±¡ï¼ˆè¦†ç›–å†™ï¼‰ï¼Œå¼‚æ­¥åˆ é™¤æ—§ TG æ¶ˆæ¯
+8. å¼‚æ­¥æ¸…é™¤ç›®æ ‡ key çš„ CDN + R2 ç¼“å­˜
 
-### DeleteObjects (批量删除)
+### DeleteObjects (æ‰¹é‡åˆ é™¤)
 
 ```
 POST /{bucket}?delete
@@ -278,15 +278,15 @@ Body:
 </Delete>
 ```
 
-处理流程：
-1. 解析 XML body，校验 Content-MD5（必需，缺失返回 400 MissingContentMD5）
-2. 逐条处理每个 key（非批量 SQL，因为每条需要独立的副作用处理）：
-   - 删除 D1 对象记录 + 更新 bucket 统计
-   - 删除关联的衍生文件（_derivatives）
-   - 删除关联的 share_tokens
-   - 异步删除 TG 消息 + CDN/R2 缓存
-3. 支持 `<Quiet>true</Quiet>` 模式（只返回错误条目）
-4. 返回结果 XML
+å¤„ç†æµç¨‹ï¼š
+1. è§£æž XML bodyï¼Œæ ¡éªŒ Content-MD5ï¼ˆå¿…éœ€ï¼Œç¼ºå¤±è¿”å›ž 400 MissingContentMD5ï¼‰
+2. é€æ¡å¤„ç†æ¯ä¸ª keyï¼ˆéžæ‰¹é‡ SQLï¼Œå› ä¸ºæ¯æ¡éœ€è¦ç‹¬ç«‹çš„å‰¯ä½œç”¨å¤„ç†ï¼‰ï¼š
+   - åˆ é™¤ D1 å¯¹è±¡è®°å½• + æ›´æ–° bucket ç»Ÿè®¡
+   - åˆ é™¤å…³è”çš„è¡ç”Ÿæ–‡ä»¶ï¼ˆ_derivativesï¼‰
+   - åˆ é™¤å…³è”çš„ share_tokens
+   - å¼‚æ­¥åˆ é™¤ TG æ¶ˆæ¯ + CDN/R2 ç¼“å­˜
+3. æ”¯æŒ `<Quiet>true</Quiet>` æ¨¡å¼ï¼ˆåªè¿”å›žé”™è¯¯æ¡ç›®ï¼‰
+4. è¿”å›žç»“æžœ XML
 
 ### CreateMultipartUpload
 
@@ -294,22 +294,22 @@ Body:
 POST /{bucket}/{key}?uploads
 ```
 
-处理：
-1. 生成 uploadId (UUID v4, `crypto.randomUUID()`)
+å¤„ç†ï¼š
+1. ç”Ÿæˆ uploadId (UUID v4, `crypto.randomUUID()`)
 2. INSERT INTO multipart_uploads (upload_id, bucket, key, created_at)
-3. 返回 uploadId
+3. è¿”å›ž uploadId
 
 ### UploadPart
 
 ```
 PUT /{bucket}/{key}?partNumber=1&uploadId=xxx
-Body: part 内容
+Body: part å†…å®¹
 ```
 
-处理：
-1. 上传 part 到 TG 作为独立文件
+å¤„ç†ï¼š
+1. ä¸Šä¼  part åˆ° TG ä½œä¸ºç‹¬ç«‹æ–‡ä»¶
 2. INSERT INTO multipart_parts (upload_id, part_number, size, etag, file_id)
-3. 返回 ETag
+3. è¿”å›ž ETag
 
 ### CompleteMultipartUpload
 
@@ -322,10 +322,10 @@ Body:
 </CompleteMultipartUpload>
 ```
 
-处理策略（混合方案）：
-- **总大小 <=20MB**：Worker 内存中下载所有 parts，拼接，通过 Bot API 重新上传为单个文件，异步删除 part 消息
-- **总大小 >20MB 且有 VPS**：委托 VPS 通过 `POST /api/proxy/consolidate` 合并所有 parts 为单个文件
-- **总大小 >2GB (VPS) 或 >20MB (无 VPS)**：返回 `EntityTooLarge` 错误
+å¤„ç†ç­–ç•¥ï¼ˆæ··åˆæ–¹æ¡ˆï¼‰ï¼š
+- **æ€»å¤§å° <=20MB**ï¼šWorker å†…å­˜ä¸­ä¸‹è½½æ‰€æœ‰ partsï¼Œæ‹¼æŽ¥ï¼Œé€šè¿‡ Bot API é‡æ–°ä¸Šä¼ ä¸ºå•ä¸ªæ–‡ä»¶ï¼Œå¼‚æ­¥åˆ é™¤ part æ¶ˆæ¯
+- **æ€»å¤§å° >20MB ä¸”æœ‰ VPS**ï¼šå§”æ‰˜ VPS é€šè¿‡ `POST /api/proxy/consolidate` åˆå¹¶æ‰€æœ‰ parts ä¸ºå•ä¸ªæ–‡ä»¶
+- **æ€»å¤§å° >2GB (VPS) æˆ– >20MB (æ—  VPS)**ï¼šè¿”å›ž `EntityTooLarge` é”™è¯¯
 
 ### ListBuckets
 
@@ -333,7 +333,7 @@ Body:
 GET /
 ```
 
-查 D1 buckets 表，返回：
+æŸ¥ D1 buckets è¡¨ï¼Œè¿”å›žï¼š
 ```xml
 <ListAllMyBucketsResult>
   <Buckets>
@@ -351,97 +351,97 @@ GET /
 PUT /{bucket}
 ```
 
-处理：
-1. 在预配置的 Supergroup (Forum) 中创建新的 Topic（通过 TG Bot API `createForumTopic`）
+å¤„ç†ï¼š
+1. åœ¨é¢„é…ç½®çš„ Supergroup (Forum) ä¸­åˆ›å»ºæ–°çš„ Topicï¼ˆé€šè¿‡ TG Bot API `createForumTopic`ï¼‰
 2. INSERT INTO buckets (name, tg_chat_id, tg_topic_id, created_at)
 
-实际实现：所有 Bucket 共用同一个 Supergroup（环境变量 `DEFAULT_CHAT_ID`），每个 Bucket 对应一个 Forum Topic，通过 `tg_topic_id` 隔离存储。Bot 需要有该 Supergroup 的管理员权限。
+å®žé™…å®žçŽ°ï¼šæ‰€æœ‰ Bucket å…±ç”¨åŒä¸€ä¸ª Supergroupï¼ˆçŽ¯å¢ƒå˜é‡ `DEFAULT_CHAT_ID`ï¼‰ï¼Œæ¯ä¸ª Bucket å¯¹åº”ä¸€ä¸ª Forum Topicï¼Œé€šè¿‡ `tg_topic_id` éš”ç¦»å­˜å‚¨ã€‚Bot éœ€è¦æœ‰è¯¥ Supergroup çš„ç®¡ç†å‘˜æƒé™ã€‚
 
-## 认证
+## è®¤è¯
 
-### AWS SigV4（S3 客户端）
+### AWS SigV4ï¼ˆS3 å®¢æˆ·ç«¯ï¼‰
 
-标准 S3 签名验证流程，支持多凭证（D1 `credentials` 表管理）：
-1. 从 Authorization header 提取 Credential, SignedHeaders, Signature
-2. 通过 Access Key ID 查询对应的 Secret Access Key（带 60s 内存缓存）
-3. 重建 Canonical Request → String to Sign
-4. 用 Secret Key 派生 Signing Key（HMAC-SHA256）
-5. 计算签名并比对
+æ ‡å‡† S3 ç­¾åéªŒè¯æµç¨‹ï¼Œæ”¯æŒå¤šå‡­è¯ï¼ˆD1 `credentials` è¡¨ç®¡ç†ï¼‰ï¼š
+1. ä»Ž Authorization header æå– Credential, SignedHeaders, Signature
+2. é€šè¿‡ Access Key ID æŸ¥è¯¢å¯¹åº”çš„ Secret Access Keyï¼ˆå¸¦ 60s å†…å­˜ç¼“å­˜ï¼‰
+3. é‡å»º Canonical Request â†’ String to Sign
+4. ç”¨ Secret Key æ´¾ç”Ÿ Signing Keyï¼ˆHMAC-SHA256ï¼‰
+5. è®¡ç®—ç­¾åå¹¶æ¯”å¯¹
 
-CPU 开销：1-3ms，在免费计划 10ms CPU 限制内完全可行。
+CPU å¼€é”€ï¼š1-3msï¼Œåœ¨å…è´¹è®¡åˆ’ 10ms CPU é™åˆ¶å†…å®Œå…¨å¯è¡Œã€‚
 
-### TG WebApp initData（Mini App）
+### TG WebApp initDataï¼ˆMini Appï¼‰
 
-Telegram Mini App 通过 WebApp initData 认证：
-1. 从 Authorization header 提取 `tg <initData>`
-2. 按 Telegram 规范验证 HMAC 签名
-3. 验证通过后授予 **admin 权限**（等同全权凭证，含凭证管理和 Bucket 删除）
+Telegram Mini App é€šè¿‡ WebApp initData è®¤è¯ï¼š
+1. ä»Ž Authorization header æå– `tg <initData>`
+2. æŒ‰ Telegram è§„èŒƒéªŒè¯ HMAC ç­¾å
+3. éªŒè¯é€šè¿‡åŽæŽˆäºˆ **admin æƒé™**ï¼ˆç­‰åŒå…¨æƒå‡­è¯ï¼Œå«å‡­è¯ç®¡ç†å’Œ Bucket åˆ é™¤ï¼‰
 
-> 设计选择: Mini App 用户统一获得 admin 权限，因为 tg-s3 是单用户系统，能打开 Mini App 的用户即为系统所有者。如果将来需要多用户支持，应引入 TG user_id 白名单机制。
+> è®¾è®¡é€‰æ‹©: Mini App ç”¨æˆ·ç»Ÿä¸€èŽ·å¾— admin æƒé™ï¼Œå› ä¸º Stratum æ˜¯å•ç”¨æˆ·ç³»ç»Ÿï¼Œèƒ½æ‰“å¼€ Mini App çš„ç”¨æˆ·å³ä¸ºç³»ç»Ÿæ‰€æœ‰è€…ã€‚å¦‚æžœå°†æ¥éœ€è¦å¤šç”¨æˆ·æ”¯æŒï¼Œåº”å¼•å…¥ TG user_id ç™½åå•æœºåˆ¶ã€‚
 
-### 认证模式总结
+### è®¤è¯æ¨¡å¼æ€»ç»“
 
-- S3 客户端 (rclone/aws cli): SigV4（多凭证）
+- S3 å®¢æˆ·ç«¯ (rclone/aws cli): SigV4ï¼ˆå¤šå‡­è¯ï¼‰
 - TG Mini App: TG WebApp initData
-- 预签名 URL: SigV4 Query String 认证
-- 公开分享链接: 分享 Token 认证
+- é¢„ç­¾å URL: SigV4 Query String è®¤è¯
+- å…¬å¼€åˆ†äº«é“¾æŽ¥: åˆ†äº« Token è®¤è¯
 
-## 明确不实现的 S3 能力
+## æ˜Žç¡®ä¸å®žçŽ°çš„ S3 èƒ½åŠ›
 
-### Versioning（对象版本控制）
+### Versioningï¼ˆå¯¹è±¡ç‰ˆæœ¬æŽ§åˆ¶ï¼‰
 
-**决定**: 不实现。永久搁置。
+**å†³å®š**: ä¸å®žçŽ°ã€‚æ°¸ä¹…æç½®ã€‚
 
-**原因**:
+**åŽŸå› **:
 
-1. **存储成本不匹配**: 每个对象版本需要一条独立的 Telegram 消息。Telegram 存储受消息数量限制，版本控制会导致存储快速膨胀，与 S3 弹性存储的前提完全不同。
+1. **å­˜å‚¨æˆæœ¬ä¸åŒ¹é…**: æ¯ä¸ªå¯¹è±¡ç‰ˆæœ¬éœ€è¦ä¸€æ¡ç‹¬ç«‹çš„ Telegram æ¶ˆæ¯ã€‚Telegram å­˜å‚¨å—æ¶ˆæ¯æ•°é‡é™åˆ¶ï¼Œç‰ˆæœ¬æŽ§åˆ¶ä¼šå¯¼è‡´å­˜å‚¨å¿«é€Ÿè†¨èƒ€ï¼Œä¸Ž S3 å¼¹æ€§å­˜å‚¨çš„å‰æå®Œå…¨ä¸åŒã€‚
 
-2. **实现范围过大**: 版本控制改变几乎所有 S3 操作的语义。DELETE 不再真正删除而是创建"删除标记"，GET 需要解析版本链，还需要新增 ListObjectVersions 操作。实现成本与价值不成比例。
+2. **å®žçŽ°èŒƒå›´è¿‡å¤§**: ç‰ˆæœ¬æŽ§åˆ¶æ”¹å˜å‡ ä¹Žæ‰€æœ‰ S3 æ“ä½œçš„è¯­ä¹‰ã€‚DELETE ä¸å†çœŸæ­£åˆ é™¤è€Œæ˜¯åˆ›å»º"åˆ é™¤æ ‡è®°"ï¼ŒGET éœ€è¦è§£æžç‰ˆæœ¬é“¾ï¼Œè¿˜éœ€è¦æ–°å¢ž ListObjectVersions æ“ä½œã€‚å®žçŽ°æˆæœ¬ä¸Žä»·å€¼ä¸æˆæ¯”ä¾‹ã€‚
 
-3. **使用场景不匹配**: tg-s3 的核心场景是个人网盘。需要版本保护的用户，通过回收站/软删除功能即可满足（规划中），只需极少的复杂度就能覆盖"误删恢复"这一核心需求。
+3. **ä½¿ç”¨åœºæ™¯ä¸åŒ¹é…**: Stratum çš„æ ¸å¿ƒåœºæ™¯æ˜¯ä¸ªäººç½‘ç›˜ã€‚éœ€è¦ç‰ˆæœ¬ä¿æŠ¤çš„ç”¨æˆ·ï¼Œé€šè¿‡å›žæ”¶ç«™/è½¯åˆ é™¤åŠŸèƒ½å³å¯æ»¡è¶³ï¼ˆè§„åˆ’ä¸­ï¼‰ï¼Œåªéœ€æžå°‘çš„å¤æ‚åº¦å°±èƒ½è¦†ç›–"è¯¯åˆ æ¢å¤"è¿™ä¸€æ ¸å¿ƒéœ€æ±‚ã€‚
 
-4. **生态先例**: 多个 S3 兼容服务（Cloudflare R2、Backblaze B2 等）同样未实现版本控制。没有主流 S3 客户端要求此功能才能正常运行。
+4. **ç”Ÿæ€å…ˆä¾‹**: å¤šä¸ª S3 å…¼å®¹æœåŠ¡ï¼ˆCloudflare R2ã€Backblaze B2 ç­‰ï¼‰åŒæ ·æœªå®žçŽ°ç‰ˆæœ¬æŽ§åˆ¶ã€‚æ²¡æœ‰ä¸»æµ S3 å®¢æˆ·ç«¯è¦æ±‚æ­¤åŠŸèƒ½æ‰èƒ½æ­£å¸¸è¿è¡Œã€‚
 
-**替代方案**: 回收站功能（软删除 + 可配置保留期），覆盖用户最核心的"防误删"需求。
+**æ›¿ä»£æ–¹æ¡ˆ**: å›žæ”¶ç«™åŠŸèƒ½ï¼ˆè½¯åˆ é™¤ + å¯é…ç½®ä¿ç•™æœŸï¼‰ï¼Œè¦†ç›–ç”¨æˆ·æœ€æ ¸å¿ƒçš„"é˜²è¯¯åˆ "éœ€æ±‚ã€‚
 
-### 其他平台限制
+### å…¶ä»–å¹³å°é™åˆ¶
 
-以下限制源于 Telegram 存储后端：
+ä»¥ä¸‹é™åˆ¶æºäºŽ Telegram å­˜å‚¨åŽç«¯ï¼š
 
-- 单文件大小上限: 2GB（Local Bot API）或 20MB（标准 Bot API，上传与下载对齐）
-- 支持 SSE-C（客户提供密钥）和 SSE-S3（服务端管理密钥，需配置 `SSE_MASTER_KEY`）
-- 支持生命周期规则（基于前缀和标签的对象过期，cron 定期执行）
-- 无存储类别: 所有对象等同于 STANDARD
-- 无对象锁定/保留: 不适用于 Telegram 存储
-- 无 Bucket Policy / ACL: 单用户系统，使用 Bearer Token 或 SigV4 认证
+- å•æ–‡ä»¶å¤§å°ä¸Šé™: 2GBï¼ˆLocal Bot APIï¼‰æˆ– 20MBï¼ˆæ ‡å‡† Bot APIï¼Œä¸Šä¼ ä¸Žä¸‹è½½å¯¹é½ï¼‰
+- æ”¯æŒ SSE-Cï¼ˆå®¢æˆ·æä¾›å¯†é’¥ï¼‰å’Œ SSE-S3ï¼ˆæœåŠ¡ç«¯ç®¡ç†å¯†é’¥ï¼Œéœ€é…ç½® `SSE_MASTER_KEY`ï¼‰
+- æ”¯æŒç”Ÿå‘½å‘¨æœŸè§„åˆ™ï¼ˆåŸºäºŽå‰ç¼€å’Œæ ‡ç­¾çš„å¯¹è±¡è¿‡æœŸï¼Œcron å®šæœŸæ‰§è¡Œï¼‰
+- æ— å­˜å‚¨ç±»åˆ«: æ‰€æœ‰å¯¹è±¡ç­‰åŒäºŽ STANDARD
+- æ— å¯¹è±¡é”å®š/ä¿ç•™: ä¸é€‚ç”¨äºŽ Telegram å­˜å‚¨
+- æ—  Bucket Policy / ACL: å•ç”¨æˆ·ç³»ç»Ÿï¼Œä½¿ç”¨ Bearer Token æˆ– SigV4 è®¤è¯
 
-## 响应格式
+## å“åº”æ ¼å¼
 
-### 通用响应头（S3 兼容性）
+### é€šç”¨å“åº”å¤´ï¼ˆS3 å…¼å®¹æ€§ï¼‰
 
-所有响应自动附加以下标准 S3 头，确保 AWS SDK 和 S3 客户端工具正常工作：
+æ‰€æœ‰å“åº”è‡ªåŠ¨é™„åŠ ä»¥ä¸‹æ ‡å‡† S3 å¤´ï¼Œç¡®ä¿ AWS SDK å’Œ S3 å®¢æˆ·ç«¯å·¥å…·æ­£å¸¸å·¥ä½œï¼š
 
-| Header | 值 | 说明 |
+| Header | å€¼ | è¯´æ˜Ž |
 |--------|---|------|
-| `Date` | UTC 时间 | AWS SDK 用于时钟偏差检测 |
-| `x-amz-request-id` | 16 字符随机 hex | 请求追踪标识 |
-| `x-amz-id-2` | 32 字符随机 hex | 扩展请求标识 |
-| `Server` | `AmazonS3` | 部分 SDK/工具检查此头 |
-| `Access-Control-Allow-Origin` | `*` | CORS 支持 |
-| `Access-Control-Expose-Headers` | ETag, Content-Range 等 | 浏览器可读取的响应头列表 |
+| `Date` | UTC æ—¶é—´ | AWS SDK ç”¨äºŽæ—¶é’Ÿåå·®æ£€æµ‹ |
+| `x-amz-request-id` | 16 å­—ç¬¦éšæœº hex | è¯·æ±‚è¿½è¸ªæ ‡è¯† |
+| `x-amz-id-2` | 32 å­—ç¬¦éšæœº hex | æ‰©å±•è¯·æ±‚æ ‡è¯† |
+| `Server` | `AmazonS3` | éƒ¨åˆ† SDK/å·¥å…·æ£€æŸ¥æ­¤å¤´ |
+| `Access-Control-Allow-Origin` | `*` | CORS æ”¯æŒ |
+| `Access-Control-Expose-Headers` | ETag, Content-Range ç­‰ | æµè§ˆå™¨å¯è¯»å–çš„å“åº”å¤´åˆ—è¡¨ |
 
-### 304 Not Modified 响应头规范
+### 304 Not Modified å“åº”å¤´è§„èŒƒ
 
-遵循 RFC 7232 §4.1，304 响应仅保留缓存相关头部，剥离表征头部：
+éµå¾ª RFC 7232 Â§4.1ï¼Œ304 å“åº”ä»…ä¿ç•™ç¼“å­˜ç›¸å…³å¤´éƒ¨ï¼Œå‰¥ç¦»è¡¨å¾å¤´éƒ¨ï¼š
 
-- **保留**: ETag, Last-Modified, Cache-Control, Expires, Vary, x-amz-meta-*
-- **剥离**: Content-Type, Content-Length, Content-Encoding, Content-Language, Content-Disposition, Content-Range, Accept-Ranges
+- **ä¿ç•™**: ETag, Last-Modified, Cache-Control, Expires, Vary, x-amz-meta-*
+- **å‰¥ç¦»**: Content-Type, Content-Length, Content-Encoding, Content-Language, Content-Disposition, Content-Range, Accept-Ranges
 
-此行为与 AWS S3 一致。
+æ­¤è¡Œä¸ºä¸Ž AWS S3 ä¸€è‡´ã€‚
 
-### 错误响应
+### é”™è¯¯å“åº”
 
-所有错误返回 S3 标准 XML：
+æ‰€æœ‰é”™è¯¯è¿”å›ž S3 æ ‡å‡† XMLï¼š
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -453,29 +453,29 @@ Telegram Mini App 通过 WebApp initData 认证：
 </Error>
 ```
 
-常用错误码：
+å¸¸ç”¨é”™è¯¯ç ï¼š
 
-| HTTP | S3 Code | 触发条件 |
+| HTTP | S3 Code | è§¦å‘æ¡ä»¶ |
 |------|---------|---------|
-| 400 | BadDigest | Content-MD5 校验失败 |
-| 400 | EntityTooLarge | 文件超出大小限制 |
-| 400 | InvalidArgument | 参数无效 (如 copy source 格式错误) |
-| 400 | InvalidPartNumber | partNumber 超出范围 |
-| 400 | KeyTooLongError | Key 超过 1024 字节 (UTF-8) |
-| 400 | MalformedXML | XML 请求体解析失败 |
-| 400 | MissingContent | UploadPart body 为空 |
-| 400 | XAmzContentSHA256Mismatch | x-amz-content-sha256 校验失败 |
-| 403 | AccessDenied | 认证失败 |
-| 404 | NoSuchBucket | Bucket 不存在 |
-| 404 | NoSuchKey | Key 不存在 |
-| 404 | NoSuchUpload | Multipart upload ID 不存在 |
-| 405 | MethodNotAllowed | 不支持的 HTTP 方法 |
-| 400 | InvalidBucketName | Bucket 名称不合法 |
-| 400 | InvalidPartOrder | CompleteMultipartUpload 中 Part 序号未递增 |
-| 400 | InvalidPart | CompleteMultipartUpload 中 Part ETag 不匹配 |
-| 400 | EntityTooSmall | Part 大小不足 (除最后一个 Part) |
-| 409 | BucketNotEmpty | 删除非空 Bucket |
-| 412 | PreconditionFailed | 条件请求失败 (If-Match / If-None-Match: *) |
-| 501 | NotImplemented | 不支持的 S3 子资源操作 (acl, tagging 等) |
-| 503 | SlowDown | 触发速率限制 |
-| 500 | InternalError | TG API 失败、VPS 后端不可用等 |
+| 400 | BadDigest | Content-MD5 æ ¡éªŒå¤±è´¥ |
+| 400 | EntityTooLarge | æ–‡ä»¶è¶…å‡ºå¤§å°é™åˆ¶ |
+| 400 | InvalidArgument | å‚æ•°æ— æ•ˆ (å¦‚ copy source æ ¼å¼é”™è¯¯) |
+| 400 | InvalidPartNumber | partNumber è¶…å‡ºèŒƒå›´ |
+| 400 | KeyTooLongError | Key è¶…è¿‡ 1024 å­—èŠ‚ (UTF-8) |
+| 400 | MalformedXML | XML è¯·æ±‚ä½“è§£æžå¤±è´¥ |
+| 400 | MissingContent | UploadPart body ä¸ºç©º |
+| 400 | XAmzContentSHA256Mismatch | x-amz-content-sha256 æ ¡éªŒå¤±è´¥ |
+| 403 | AccessDenied | è®¤è¯å¤±è´¥ |
+| 404 | NoSuchBucket | Bucket ä¸å­˜åœ¨ |
+| 404 | NoSuchKey | Key ä¸å­˜åœ¨ |
+| 404 | NoSuchUpload | Multipart upload ID ä¸å­˜åœ¨ |
+| 405 | MethodNotAllowed | ä¸æ”¯æŒçš„ HTTP æ–¹æ³• |
+| 400 | InvalidBucketName | Bucket åç§°ä¸åˆæ³• |
+| 400 | InvalidPartOrder | CompleteMultipartUpload ä¸­ Part åºå·æœªé€’å¢ž |
+| 400 | InvalidPart | CompleteMultipartUpload ä¸­ Part ETag ä¸åŒ¹é… |
+| 400 | EntityTooSmall | Part å¤§å°ä¸è¶³ (é™¤æœ€åŽä¸€ä¸ª Part) |
+| 409 | BucketNotEmpty | åˆ é™¤éžç©º Bucket |
+| 412 | PreconditionFailed | æ¡ä»¶è¯·æ±‚å¤±è´¥ (If-Match / If-None-Match: *) |
+| 501 | NotImplemented | ä¸æ”¯æŒçš„ S3 å­èµ„æºæ“ä½œ (acl, tagging ç­‰) |
+| 503 | SlowDown | è§¦å‘é€ŸçŽ‡é™åˆ¶ |
+| 500 | InternalError | TG API å¤±è´¥ã€VPS åŽç«¯ä¸å¯ç”¨ç­‰ |

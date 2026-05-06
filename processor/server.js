@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const AUTH_SECRET = process.env.AUTH_SECRET;
 const TG_API = process.env.TG_LOCAL_API || 'https://api.telegram.org';
-const TEMP_DIR = process.env.TEMP_DIR || '/tmp/tg-s3-processor';
+const TEMP_DIR = process.env.TEMP_DIR || '/tmp/stratum-processor';
 
 // Timeout constants for TG API calls (server-side protection against hangs)
 const TIMEOUT_API = 30_000;            // 30s for getFile and similar API method calls
@@ -699,5 +699,5 @@ async function getFilePath(fileId) {
 }
 
 app.listen(PORT, () => {
-  console.log(`tg-s3-processor running on port ${PORT}`);
+  console.log(`stratum-processor running on port ${PORT}`);
 });

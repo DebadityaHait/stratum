@@ -1,148 +1,148 @@
-# TG-S3
+# Stratum
 
-**基于 Telegram 的 S3 兼容存储，运行在 Cloudflare Workers 上**
+**åŸºäºŽ Telegram çš„ S3 å…¼å®¹å­˜å‚¨ï¼Œè¿è¡Œåœ¨ Cloudflare Workers ä¸Š**
 
-[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md) | [Français](README.fr.md)
+[English](README.md) | [ä¸­æ–‡](README.zh.md) | [æ—¥æœ¬èªž](README.ja.md) | [FranÃ§ais](README.fr.md)
 
 ---
 
-TG-S3 将 Telegram 变成 S3 兼容的对象存储后端。文件作为 Telegram 消息存储，元数据保存在 Cloudflare D1 中，整个系统运行在 Cloudflare Workers 上，零运行时依赖。
+Stratum å°† Telegram å˜æˆ S3 å…¼å®¹çš„å¯¹è±¡å­˜å‚¨åŽç«¯ã€‚æ–‡ä»¶ä½œä¸º Telegram æ¶ˆæ¯å­˜å‚¨ï¼Œå…ƒæ•°æ®ä¿å­˜åœ¨ Cloudflare D1 ä¸­ï¼Œæ•´ä¸ªç³»ç»Ÿè¿è¡Œåœ¨ Cloudflare Workers ä¸Šï¼Œé›¶è¿è¡Œæ—¶ä¾èµ–ã€‚
 
-## 功能特性
+## åŠŸèƒ½ç‰¹æ€§
 
-- **S3 兼容 API** -- 支持 27 种操作，包括分片上传、预签名 URL 和条件请求
-- **无限免费存储** -- Telegram 提供免费的存储层
-- **三级缓存** -- CF CDN (L1) -> R2 (L2) -> Telegram (L3)，加速读取
-- **Telegram Bot** -- 直接在 Telegram 中管理文件、存储桶和分享
-- **Mini App** -- Telegram 内置的完整 Web UI，支持文件浏览、上传和分享管理
-- **文件分享** -- 支持密码保护、过期时间、下载限制和在线预览的分享链接
-- **服务端加密** -- 支持 SSE-C（客户提供密钥）和 SSE-S3（服务端托管密钥），采用 AES-256-GCM 加密
-- **大文件支持** -- 通过可选的 VPS 代理和 Local Bot API 支持最大 2GB 文件
-- **媒体处理** -- 通过 VPS 实现图片转换 (HEIC/WebP)、视频转码、Live Photo 处理
-- **多凭据认证** -- 基于 D1 的凭据管理，支持按存储桶和操作设置权限
-- **Cloudflare Tunnel** -- 安全连接 VPS，无需暴露公网端口
-- **多语言** -- Mini App 支持英语、中文、日语和法语
-- **零成本起步** -- 核心功能完全运行在 Cloudflare 免费套餐上
+- **S3 å…¼å®¹ API** -- æ”¯æŒ 27 ç§æ“ä½œï¼ŒåŒ…æ‹¬åˆ†ç‰‡ä¸Šä¼ ã€é¢„ç­¾å URL å’Œæ¡ä»¶è¯·æ±‚
+- **æ— é™å…è´¹å­˜å‚¨** -- Telegram æä¾›å…è´¹çš„å­˜å‚¨å±‚
+- **ä¸‰çº§ç¼“å­˜** -- CF CDN (L1) -> R2 (L2) -> Telegram (L3)ï¼ŒåŠ é€Ÿè¯»å–
+- **Telegram Bot** -- ç›´æŽ¥åœ¨ Telegram ä¸­ç®¡ç†æ–‡ä»¶ã€å­˜å‚¨æ¡¶å’Œåˆ†äº«
+- **Mini App** -- Telegram å†…ç½®çš„å®Œæ•´ Web UIï¼Œæ”¯æŒæ–‡ä»¶æµè§ˆã€ä¸Šä¼ å’Œåˆ†äº«ç®¡ç†
+- **æ–‡ä»¶åˆ†äº«** -- æ”¯æŒå¯†ç ä¿æŠ¤ã€è¿‡æœŸæ—¶é—´ã€ä¸‹è½½é™åˆ¶å’Œåœ¨çº¿é¢„è§ˆçš„åˆ†äº«é“¾æŽ¥
+- **æœåŠ¡ç«¯åŠ å¯†** -- æ”¯æŒ SSE-Cï¼ˆå®¢æˆ·æä¾›å¯†é’¥ï¼‰å’Œ SSE-S3ï¼ˆæœåŠ¡ç«¯æ‰˜ç®¡å¯†é’¥ï¼‰ï¼Œé‡‡ç”¨ AES-256-GCM åŠ å¯†
+- **å¤§æ–‡ä»¶æ”¯æŒ** -- é€šè¿‡å¯é€‰çš„ VPS ä»£ç†å’Œ Local Bot API æ”¯æŒæœ€å¤§ 2GB æ–‡ä»¶
+- **åª’ä½“å¤„ç†** -- é€šè¿‡ VPS å®žçŽ°å›¾ç‰‡è½¬æ¢ (HEIC/WebP)ã€è§†é¢‘è½¬ç ã€Live Photo å¤„ç†
+- **å¤šå‡­æ®è®¤è¯** -- åŸºäºŽ D1 çš„å‡­æ®ç®¡ç†ï¼Œæ”¯æŒæŒ‰å­˜å‚¨æ¡¶å’Œæ“ä½œè®¾ç½®æƒé™
+- **Cloudflare Tunnel** -- å®‰å…¨è¿žæŽ¥ VPSï¼Œæ— éœ€æš´éœ²å…¬ç½‘ç«¯å£
+- **å¤šè¯­è¨€** -- Mini App æ”¯æŒè‹±è¯­ã€ä¸­æ–‡ã€æ—¥è¯­å’Œæ³•è¯­
+- **é›¶æˆæœ¬èµ·æ­¥** -- æ ¸å¿ƒåŠŸèƒ½å®Œå…¨è¿è¡Œåœ¨ Cloudflare å…è´¹å¥—é¤ä¸Š
 
-## 架构
+## æž¶æž„
 
 ```
-S3 客户端 ──────┐
-                │
-Telegram Bot ───┤
-                ├──▶ Cloudflare Worker ──▶ D1 (元数据)
-Mini App ───────┤         │                R2 (缓存)
-                │         │
-分享链接 ───────┘         ▼
-                     Telegram API ◀──▶ VPS 代理 (可选，>20MB)
+S3 å®¢æˆ·ç«¯ â”€â”€â”€â”€â”€â”€â”
+                â”‚
+Telegram Bot â”€â”€â”€â”¤
+                â”œâ”€â”€â–¶ Cloudflare Worker â”€â”€â–¶ D1 (å…ƒæ•°æ®)
+Mini App â”€â”€â”€â”€â”€â”€â”€â”¤         â”‚                R2 (ç¼“å­˜)
+                â”‚         â”‚
+åˆ†äº«é“¾æŽ¥ â”€â”€â”€â”€â”€â”€â”€â”˜         â–¼
+                     Telegram API â—€â”€â”€â–¶ VPS ä»£ç† (å¯é€‰ï¼Œ>20MB)
 ```
 
-**组件：**
+**ç»„ä»¶ï¼š**
 
-| 组件 | 作用 | 费用 |
+| ç»„ä»¶ | ä½œç”¨ | è´¹ç”¨ |
 |------|------|------|
-| CF Worker | S3 API 网关、Bot Webhook、Mini App 托管 | 免费套餐 |
-| CF D1 | 元数据存储（对象、存储桶、分享） | 免费套餐 |
-| CF R2 | 持久缓存，<=20MB 文件 | 免费套餐 (10GB) |
-| Telegram | 持久文件存储（无限容量） | 免费 |
-| VPS + Processor | 大文件 (>20MB)、媒体处理 | 约 $4/月（可选） |
+| CF Worker | S3 API ç½‘å…³ã€Bot Webhookã€Mini App æ‰˜ç®¡ | å…è´¹å¥—é¤ |
+| CF D1 | å…ƒæ•°æ®å­˜å‚¨ï¼ˆå¯¹è±¡ã€å­˜å‚¨æ¡¶ã€åˆ†äº«ï¼‰ | å…è´¹å¥—é¤ |
+| CF R2 | æŒä¹…ç¼“å­˜ï¼Œ<=20MB æ–‡ä»¶ | å…è´¹å¥—é¤ (10GB) |
+| Telegram | æŒä¹…æ–‡ä»¶å­˜å‚¨ï¼ˆæ— é™å®¹é‡ï¼‰ | å…è´¹ |
+| VPS + Processor | å¤§æ–‡ä»¶ (>20MB)ã€åª’ä½“å¤„ç† | çº¦ $4/æœˆï¼ˆå¯é€‰ï¼‰ |
 
-## 快速开始
+## å¿«é€Ÿå¼€å§‹
 
-### 前置条件
+### å‰ç½®æ¡ä»¶
 
 - Node.js 22+
-- 一个 [Telegram Bot](https://t.me/BotFather) 及其 Token
-- 一个 Telegram 群组/超级群组（通过 [@userinfobot](https://t.me/userinfobot) 获取 Chat ID）
-- 一个 [Cloudflare 账户](https://dash.cloudflare.com)
+- ä¸€ä¸ª [Telegram Bot](https://t.me/BotFather) åŠå…¶ Token
+- ä¸€ä¸ª Telegram ç¾¤ç»„/è¶…çº§ç¾¤ç»„ï¼ˆé€šè¿‡ [@userinfobot](https://t.me/userinfobot) èŽ·å– Chat IDï¼‰
+- ä¸€ä¸ª [Cloudflare è´¦æˆ·](https://dash.cloudflare.com)
 
-### 一键部署
+### ä¸€é”®éƒ¨ç½²
 
 ```bash
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
+git clone https://github.com/DebadityaHait/stratum.git
+cd stratum
 cp .env.example .env
-# 编辑 .env: 填写 TG_BOT_TOKEN、DEFAULT_CHAT_ID、CLOUDFLARE_API_TOKEN
-# 建议设置 TG_ADMIN_IDS 限制 Bot 访问权限（逗号分隔的用户 ID）
+# ç¼–è¾‘ .env: å¡«å†™ TG_BOT_TOKENã€DEFAULT_CHAT_IDã€CLOUDFLARE_API_TOKEN
+# å»ºè®®è®¾ç½® TG_ADMIN_IDS é™åˆ¶ Bot è®¿é—®æƒé™ï¼ˆé€—å·åˆ†éš”çš„ç”¨æˆ· IDï¼‰
 ./deploy.sh
 ```
 
-`deploy.sh` 自动检测运行环境：有 Docker 时自动构建镜像、部署 CF Worker、配置 Cloudflare Tunnel 并启动所有服务；无 Docker 时使用本地 wrangler 部署。S3 凭据可在 Telegram Mini App 的 Keys 标签页中创建。
+`deploy.sh` è‡ªåŠ¨æ£€æµ‹è¿è¡ŒçŽ¯å¢ƒï¼šæœ‰ Docker æ—¶è‡ªåŠ¨æž„å»ºé•œåƒã€éƒ¨ç½² CF Workerã€é…ç½® Cloudflare Tunnel å¹¶å¯åŠ¨æ‰€æœ‰æœåŠ¡ï¼›æ—  Docker æ—¶ä½¿ç”¨æœ¬åœ° wrangler éƒ¨ç½²ã€‚S3 å‡­æ®å¯åœ¨ Telegram Mini App çš„ Keys æ ‡ç­¾é¡µä¸­åˆ›å»ºã€‚
 
-### 验证
+### éªŒè¯
 
-将任意 S3 客户端指向你的 Worker URL：
+å°†ä»»æ„ S3 å®¢æˆ·ç«¯æŒ‡å‘ä½ çš„ Worker URLï¼š
 
 ```bash
-# 使用 AWS CLI
+# ä½¿ç”¨ AWS CLI
 aws configure set aws_access_key_id YOUR_KEY
 aws configure set aws_secret_access_key YOUR_SECRET
 aws --endpoint-url https://your-worker.workers.dev s3 ls
 
-# 使用 rclone
-rclone config create tgs3 s3 \
+# ä½¿ç”¨ rclone
+rclone config create stratum s3 \
   provider=Other \
   access_key_id=YOUR_KEY \
   secret_access_key=YOUR_SECRET \
   endpoint=https://your-worker.workers.dev \
   acl=private
-rclone ls tgs3:default
+rclone ls stratum:default
 ```
 
-## S3 兼容性
+## S3 å…¼å®¹æ€§
 
-支持 27 种操作，涵盖对象 CRUD、分片上传、存储桶管理和认证。
+æ”¯æŒ 27 ç§æ“ä½œï¼Œæ¶µç›–å¯¹è±¡ CRUDã€åˆ†ç‰‡ä¸Šä¼ ã€å­˜å‚¨æ¡¶ç®¡ç†å’Œè®¤è¯ã€‚
 
-| 分类 | 操作 |
+| åˆ†ç±» | æ“ä½œ |
 |------|------|
-| 对象 | GetObject, PutObject, HeadObject, DeleteObject, DeleteObjects, CopyObject |
-| 标签 | GetObjectTagging, PutObjectTagging, DeleteObjectTagging |
-| 列举 | ListObjectsV2, ListObjects (v1) |
-| 分片上传 | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
-| 存储桶 | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
-| 生命周期 | GetBucketLifecycleConfiguration, PutBucketLifecycleConfiguration, DeleteBucketLifecycleConfiguration |
-| 认证 | AWS SigV4（多凭据）、预签名 URL、Bearer Token、Telegram initData |
+| å¯¹è±¡ | GetObject, PutObject, HeadObject, DeleteObject, DeleteObjects, CopyObject |
+| æ ‡ç­¾ | GetObjectTagging, PutObjectTagging, DeleteObjectTagging |
+| åˆ—ä¸¾ | ListObjectsV2, ListObjects (v1) |
+| åˆ†ç‰‡ä¸Šä¼  | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
+| å­˜å‚¨æ¡¶ | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
+| ç”Ÿå‘½å‘¨æœŸ | GetBucketLifecycleConfiguration, PutBucketLifecycleConfiguration, DeleteBucketLifecycleConfiguration |
+| è®¤è¯ | AWS SigV4ï¼ˆå¤šå‡­æ®ï¼‰ã€é¢„ç­¾å URLã€Bearer Tokenã€Telegram initData |
 
-**不支持（设计决策）：** 版本控制、ACL、跨区域复制。详见 [docs/S3-COMPAT.md](docs/S3-COMPAT.md)。
+**ä¸æ”¯æŒï¼ˆè®¾è®¡å†³ç­–ï¼‰ï¼š** ç‰ˆæœ¬æŽ§åˆ¶ã€ACLã€è·¨åŒºåŸŸå¤åˆ¶ã€‚è¯¦è§ [docs/S3-COMPAT.md](docs/S3-COMPAT.md)ã€‚
 
-## Telegram Bot 命令
+## Telegram Bot å‘½ä»¤
 
-| 命令 | 说明 |
+| å‘½ä»¤ | è¯´æ˜Ž |
 |------|------|
-| `/start` | 欢迎消息 |
-| `/help` | 命令帮助 |
-| `/buckets` | 列出所有存储桶 |
-| `/ls <bucket> [prefix]` | 列出对象 |
-| `/info <bucket> <key>` | 对象详情 |
-| `/search <bucket> <query>` | 搜索对象 |
-| `/share <bucket> <key>` | 创建分享链接 |
-| `/shares` | 列出活跃的分享 |
-| `/revoke <token>` | 撤销分享 |
-| `/delete <bucket> <key>` | 删除对象（需确认） |
-| `/stats` | 存储统计 |
-| `/setbucket <name>` | 设置默认存储桶 |
-| `/miniapp` | 打开 Mini App |
+| `/start` | æ¬¢è¿Žæ¶ˆæ¯ |
+| `/help` | å‘½ä»¤å¸®åŠ© |
+| `/buckets` | åˆ—å‡ºæ‰€æœ‰å­˜å‚¨æ¡¶ |
+| `/ls <bucket> [prefix]` | åˆ—å‡ºå¯¹è±¡ |
+| `/info <bucket> <key>` | å¯¹è±¡è¯¦æƒ… |
+| `/search <bucket> <query>` | æœç´¢å¯¹è±¡ |
+| `/share <bucket> <key>` | åˆ›å»ºåˆ†äº«é“¾æŽ¥ |
+| `/shares` | åˆ—å‡ºæ´»è·ƒçš„åˆ†äº« |
+| `/revoke <token>` | æ’¤é”€åˆ†äº« |
+| `/delete <bucket> <key>` | åˆ é™¤å¯¹è±¡ï¼ˆéœ€ç¡®è®¤ï¼‰ |
+| `/stats` | å­˜å‚¨ç»Ÿè®¡ |
+| `/setbucket <name>` | è®¾ç½®é»˜è®¤å­˜å‚¨æ¡¶ |
+| `/miniapp` | æ‰“å¼€ Mini App |
 
-直接发送文件给 Bot 即可上传到默认存储桶。
+ç›´æŽ¥å‘é€æ–‡ä»¶ç»™ Bot å³å¯ä¸Šä¼ åˆ°é»˜è®¤å­˜å‚¨æ¡¶ã€‚
 
-## 文档
+## æ–‡æ¡£
 
-- [部署指南](docs/deployment.zh.md)
-- [配置参考](docs/configuration.zh.md)
-- [Bot 命令](docs/bot-commands.zh.md)
-- [S3 兼容性](docs/S3-COMPAT.md)
-- [架构设计](docs/design/00-overview.md)
+- [éƒ¨ç½²æŒ‡å—](docs/deployment.zh.md)
+- [é…ç½®å‚è€ƒ](docs/configuration.zh.md)
+- [Bot å‘½ä»¤](docs/bot-commands.zh.md)
+- [S3 å…¼å®¹æ€§](docs/S3-COMPAT.md)
+- [æž¶æž„è®¾è®¡](docs/design/00-overview.md)
 
-## 技术栈
+## æŠ€æœ¯æ ˆ
 
-- **运行时：** Cloudflare Workers（零运行时依赖）
-- **数据库：** Cloudflare D1 (SQLite)
-- **缓存：** Cloudflare R2 + CF Cache API
-- **认证：** AWS SigV4、预签名 URL、Bearer Token
-- **语言：** TypeScript（严格模式）
-- **媒体处理：** Sharp + FFmpeg（仅 VPS）
-- **构建：** wrangler v3
+- **è¿è¡Œæ—¶ï¼š** Cloudflare Workersï¼ˆé›¶è¿è¡Œæ—¶ä¾èµ–ï¼‰
+- **æ•°æ®åº“ï¼š** Cloudflare D1 (SQLite)
+- **ç¼“å­˜ï¼š** Cloudflare R2 + CF Cache API
+- **è®¤è¯ï¼š** AWS SigV4ã€é¢„ç­¾å URLã€Bearer Token
+- **è¯­è¨€ï¼š** TypeScriptï¼ˆä¸¥æ ¼æ¨¡å¼ï¼‰
+- **åª’ä½“å¤„ç†ï¼š** Sharp + FFmpegï¼ˆä»… VPSï¼‰
+- **æž„å»ºï¼š** wrangler v3
 
-## 许可证
+## è®¸å¯è¯
 
 MIT

@@ -1,57 +1,57 @@
-# 媒体处理与文件分享
+# åª’ä½“å¤„ç†ä¸Žæ–‡ä»¶åˆ†äº«
 
-## 一、文件分块引擎 [Phase 2 - 分块上传/下载未实现]
+## ä¸€ã€æ–‡ä»¶åˆ†å—å¼•æ“Ž [Phase 2 - åˆ†å—ä¸Šä¼ /ä¸‹è½½æœªå®žçŽ°]
 
-> 当前实现中，单文件通过 Bot API 上传 (<=20MB) 或 VPS Local Bot API (<=2GB)。
-> 分块上传/下载流程用于突破 2GB 限制，留待后续版本实现。chunks 表已创建，CRUD
-> 操作已实现，当前用于 DeleteObject 时清理关联的 chunk 记录和 TG 消息。
+> å½“å‰å®žçŽ°ä¸­ï¼Œå•æ–‡ä»¶é€šè¿‡ Bot API ä¸Šä¼  (<=20MB) æˆ– VPS Local Bot API (<=2GB)ã€‚
+> åˆ†å—ä¸Šä¼ /ä¸‹è½½æµç¨‹ç”¨äºŽçªç ´ 2GB é™åˆ¶ï¼Œç•™å¾…åŽç»­ç‰ˆæœ¬å®žçŽ°ã€‚chunks è¡¨å·²åˆ›å»ºï¼ŒCRUD
+> æ“ä½œå·²å®žçŽ°ï¼Œå½“å‰ç”¨äºŽ DeleteObject æ—¶æ¸…ç†å…³è”çš„ chunk è®°å½•å’Œ TG æ¶ˆæ¯ã€‚
 
-### 分块策略
+### åˆ†å—ç­–ç•¥
 
-| 部署方式 | 块大小 | 原因 |
+| éƒ¨ç½²æ–¹å¼ | å—å¤§å° | åŽŸå›  |
 |---------|--------|------|
-| 纯 Worker (Bot API) | 18 MB | 留 2MB 余量（20MB 下载限制） |
-| VPS (Local Bot API) | 1.8 GB | 留余量（2GB 限制） |
+| çº¯ Worker (Bot API) | 18 MB | ç•™ 2MB ä½™é‡ï¼ˆ20MB ä¸‹è½½é™åˆ¶ï¼‰ |
+| VPS (Local Bot API) | 1.8 GB | ç•™ä½™é‡ï¼ˆ2GB é™åˆ¶ï¼‰ |
 
-### 上传分块流程
-
-```
-大文件 (>= chunk_size)
-    │
-    ├─ 1. Worker/VPS 接收完整文件流
-    ├─ 2. 流式切块，每块送 TG sendDocument
-    ├─ 3. 每块获得 file_id, message_id
-    ├─ 4. 写入 chunks 表:
-    │     chunk_index=0, offset=0, size=18MB, file_id=aaa
-    │     chunk_index=1, offset=18MB, size=18MB, file_id=bbb
-    │     chunk_index=2, offset=36MB, size=5MB, file_id=ccc
-    │
-    └─ 5. 写入 objects 表: size=41MB (chunks 表记录分块映射, Phase 2 需扩展 objects 表增加 is_chunked/chunk_count 列)
-```
-
-### 下载重组装流程
+### ä¸Šä¼ åˆ†å—æµç¨‹
 
 ```
-GetObject 请求 → 查 D1 → is_chunked=true
-    │
-    ├─ 无 Range header: 按序下载所有块，流式拼接返回
-    │   chunk_0 → stream → chunk_1 → stream → chunk_2 → stream → 完成
-    │
-    └─ 有 Range header: 计算目标块，只下载需要的块
+å¤§æ–‡ä»¶ (>= chunk_size)
+    â”‚
+    â”œâ”€ 1. Worker/VPS æŽ¥æ”¶å®Œæ•´æ–‡ä»¶æµ
+    â”œâ”€ 2. æµå¼åˆ‡å—ï¼Œæ¯å—é€ TG sendDocument
+    â”œâ”€ 3. æ¯å—èŽ·å¾— file_id, message_id
+    â”œâ”€ 4. å†™å…¥ chunks è¡¨:
+    â”‚     chunk_index=0, offset=0, size=18MB, file_id=aaa
+    â”‚     chunk_index=1, offset=18MB, size=18MB, file_id=bbb
+    â”‚     chunk_index=2, offset=36MB, size=5MB, file_id=ccc
+    â”‚
+    â””â”€ 5. å†™å…¥ objects è¡¨: size=41MB (chunks è¡¨è®°å½•åˆ†å—æ˜ å°„, Phase 2 éœ€æ‰©å±• objects è¡¨å¢žåŠ  is_chunked/chunk_count åˆ—)
+```
+
+### ä¸‹è½½é‡ç»„è£…æµç¨‹
+
+```
+GetObject è¯·æ±‚ â†’ æŸ¥ D1 â†’ is_chunked=true
+    â”‚
+    â”œâ”€ æ—  Range header: æŒ‰åºä¸‹è½½æ‰€æœ‰å—ï¼Œæµå¼æ‹¼æŽ¥è¿”å›ž
+    â”‚   chunk_0 â†’ stream â†’ chunk_1 â†’ stream â†’ chunk_2 â†’ stream â†’ å®Œæˆ
+    â”‚
+    â””â”€ æœ‰ Range header: è®¡ç®—ç›®æ ‡å—ï¼Œåªä¸‹è½½éœ€è¦çš„å—
         Range: bytes=20000000-25000000
-        → 目标 chunk_index=1 (offset 18MB-36MB)
-        → 在 chunk 内 offset = 20MB - 18MB = 2MB
-        → 下载 chunk_1，seek 到 2MB，读取 5MB
+        â†’ ç›®æ ‡ chunk_index=1 (offset 18MB-36MB)
+        â†’ åœ¨ chunk å†… offset = 20MB - 18MB = 2MB
+        â†’ ä¸‹è½½ chunk_1ï¼Œseek åˆ° 2MBï¼Œè¯»å– 5MB
 ```
 
-### Range 请求实现
+### Range è¯·æ±‚å®žçŽ°
 
 ```typescript
 interface RangeResult {
   startChunk: number;
   endChunk: number;
-  startOffset: number;  // 在第一个 chunk 内的偏移
-  endOffset: number;    // 在最后一个 chunk 内的结束位置
+  startOffset: number;  // åœ¨ç¬¬ä¸€ä¸ª chunk å†…çš„åç§»
+  endOffset: number;    // åœ¨æœ€åŽä¸€ä¸ª chunk å†…çš„ç»“æŸä½ç½®
 }
 
 function resolveRange(
@@ -80,48 +80,48 @@ function resolveRange(
 
 ---
 
-## 二、媒体处理管线 [Phase 2 - 需 VPS]
+## äºŒã€åª’ä½“å¤„ç†ç®¡çº¿ [Phase 2 - éœ€ VPS]
 
-> 当前实现中，Worker 支持图片变体请求 (?w=, ?fmt=) 并通过 VPS API 处理。
-> 完整的自动媒体处理管线（HEIC 转换、视频转码、缩略图生成）需 VPS 配合，留待后续完善。
+> å½“å‰å®žçŽ°ä¸­ï¼ŒWorker æ”¯æŒå›¾ç‰‡å˜ä½“è¯·æ±‚ (?w=, ?fmt=) å¹¶é€šè¿‡ VPS API å¤„ç†ã€‚
+> å®Œæ•´çš„è‡ªåŠ¨åª’ä½“å¤„ç†ç®¡çº¿ï¼ˆHEIC è½¬æ¢ã€è§†é¢‘è½¬ç ã€ç¼©ç•¥å›¾ç”Ÿæˆï¼‰éœ€ VPS é…åˆï¼Œç•™å¾…åŽç»­å®Œå–„ã€‚
 
-### 架构
+### æž¶æž„
 
 ```
-上传请求 → Worker
-    │
-    ├─ 普通文件 → 直接存 TG → 完成
-    │
-    └─ 媒体文件 (图片/视频/实况照片)
-         │
-         ├─ 原始文件 → 存 TG (保留原件)
-         │
-         └─ 推送处理任务到 VPS
-              │
-              ├─ 图片: sharp 处理
-              │   ├─ HEIC → JPEG (全尺寸)
-              │   ├─ 生成 WebP 缩略图 (多尺寸)
-              │   └─ 提取 EXIF 元数据
-              │
-              ├─ 实况照片: sharp + ffmpeg
-              │   ├─ HEIC → JPEG
-              │   ├─ MOV → MP4 (H.264, web 兼容)
-              │   └─ 提取 ContentIdentifier 关联
-              │
-              └─ 视频: ffmpeg
-                  ├─ 转码 H.264 MP4
-                  ├─ 生成封面帧 JPEG
-                  └─ 可选: 多码率 HLS 分段
-              │
-              └─ 衍生文件 → 存 TG → 更新 D1 元数据
+ä¸Šä¼ è¯·æ±‚ â†’ Worker
+    â”‚
+    â”œâ”€ æ™®é€šæ–‡ä»¶ â†’ ç›´æŽ¥å­˜ TG â†’ å®Œæˆ
+    â”‚
+    â””â”€ åª’ä½“æ–‡ä»¶ (å›¾ç‰‡/è§†é¢‘/å®žå†µç…§ç‰‡)
+         â”‚
+         â”œâ”€ åŽŸå§‹æ–‡ä»¶ â†’ å­˜ TG (ä¿ç•™åŽŸä»¶)
+         â”‚
+         â””â”€ æŽ¨é€å¤„ç†ä»»åŠ¡åˆ° VPS
+              â”‚
+              â”œâ”€ å›¾ç‰‡: sharp å¤„ç†
+              â”‚   â”œâ”€ HEIC â†’ JPEG (å…¨å°ºå¯¸)
+              â”‚   â”œâ”€ ç”Ÿæˆ WebP ç¼©ç•¥å›¾ (å¤šå°ºå¯¸)
+              â”‚   â””â”€ æå– EXIF å…ƒæ•°æ®
+              â”‚
+              â”œâ”€ å®žå†µç…§ç‰‡: sharp + ffmpeg
+              â”‚   â”œâ”€ HEIC â†’ JPEG
+              â”‚   â”œâ”€ MOV â†’ MP4 (H.264, web å…¼å®¹)
+              â”‚   â””â”€ æå– ContentIdentifier å…³è”
+              â”‚
+              â””â”€ è§†é¢‘: ffmpeg
+                  â”œâ”€ è½¬ç  H.264 MP4
+                  â”œâ”€ ç”Ÿæˆå°é¢å¸§ JPEG
+                  â””â”€ å¯é€‰: å¤šç çŽ‡ HLS åˆ†æ®µ
+              â”‚
+              â””â”€ è¡ç”Ÿæ–‡ä»¶ â†’ å­˜ TG â†’ æ›´æ–° D1 å…ƒæ•°æ®
 ```
 
-### 处理任务队列
+### å¤„ç†ä»»åŠ¡é˜Ÿåˆ—
 
-Worker 与 VPS 之间通过 HTTP API 通信：
+Worker ä¸Ž VPS ä¹‹é—´é€šè¿‡ HTTP API é€šä¿¡ï¼š
 
 ```typescript
-// Worker 侧: 提交处理任务
+// Worker ä¾§: æäº¤å¤„ç†ä»»åŠ¡
 async function submitMediaJob(file: ObjectMetadata, type: MediaJobType) {
   await fetch(`${VPS_URL}/api/jobs`, {
     method: 'POST',
@@ -139,43 +139,43 @@ async function submitMediaJob(file: ObjectMetadata, type: MediaJobType) {
 }
 ```
 
-VPS 侧 API：
+VPS ä¾§ APIï¼š
 
 ```
-POST /api/jobs              提交媒体处理任务
-GET  /api/jobs/:id          查询任务状态
-POST /api/proxy/get         从 TG 下载文件（供 Worker 大文件使用）
-POST /api/proxy/put         上传文件到 TG（供 Worker 大文件使用）
-POST /api/proxy/range       Range 读取（大文件，POST body 含 file_id/start/end）
-POST /api/proxy/consolidate Multipart 合并（将多个 TG part 拼接为单文件）
-GET  /api/image/resize      图片变体（query: tg_file_id, width?, format?）
+POST /api/jobs              æäº¤åª’ä½“å¤„ç†ä»»åŠ¡
+GET  /api/jobs/:id          æŸ¥è¯¢ä»»åŠ¡çŠ¶æ€
+POST /api/proxy/get         ä»Ž TG ä¸‹è½½æ–‡ä»¶ï¼ˆä¾› Worker å¤§æ–‡ä»¶ä½¿ç”¨ï¼‰
+POST /api/proxy/put         ä¸Šä¼ æ–‡ä»¶åˆ° TGï¼ˆä¾› Worker å¤§æ–‡ä»¶ä½¿ç”¨ï¼‰
+POST /api/proxy/range       Range è¯»å–ï¼ˆå¤§æ–‡ä»¶ï¼ŒPOST body å« file_id/start/endï¼‰
+POST /api/proxy/consolidate Multipart åˆå¹¶ï¼ˆå°†å¤šä¸ª TG part æ‹¼æŽ¥ä¸ºå•æ–‡ä»¶ï¼‰
+GET  /api/image/resize      å›¾ç‰‡å˜ä½“ï¼ˆquery: tg_file_id, width?, format?ï¼‰
 ```
 
-### 图片处理细节
+### å›¾ç‰‡å¤„ç†ç»†èŠ‚
 
 ```typescript
-// VPS 侧: sharp 处理
+// VPS ä¾§: sharp å¤„ç†
 import sharp from 'sharp';
 
 async function processImage(inputBuffer: Buffer, format: string) {
   const pipeline = sharp(inputBuffer);
 
-  // 读取元数据
+  // è¯»å–å…ƒæ•°æ®
   const metadata = await pipeline.metadata();
 
   const results = {
-    // 全尺寸 JPEG（从 HEIC 转换）
+    // å…¨å°ºå¯¸ JPEGï¼ˆä»Ž HEIC è½¬æ¢ï¼‰
     full: await sharp(inputBuffer)
       .jpeg({ quality: 90, mozjpeg: true })
       .toBuffer(),
 
-    // 缩略图 400px 宽
+    // ç¼©ç•¥å›¾ 400px å®½
     thumb_400: await sharp(inputBuffer)
       .resize(400, null, { withoutEnlargement: true })
       .webp({ quality: 80 })
       .toBuffer(),
 
-    // 缩略图 200px 宽
+    // ç¼©ç•¥å›¾ 200px å®½
     thumb_200: await sharp(inputBuffer)
       .resize(200, null, { withoutEnlargement: true })
       .webp({ quality: 75 })
@@ -193,24 +193,24 @@ async function processImage(inputBuffer: Buffer, format: string) {
 }
 ```
 
-### 实况照片处理
+### å®žå†µç…§ç‰‡å¤„ç†
 
 ```typescript
-// VPS 侧
+// VPS ä¾§
 async function processLivePhoto(heicBuffer: Buffer, movBuffer: Buffer) {
-  // 1. 从 HEIC 提取 ContentIdentifier
+  // 1. ä»Ž HEIC æå– ContentIdentifier
   const heicId = await extractContentIdentifier(heicBuffer);
 
-  // 2. 从 MOV 提取 ContentIdentifier
+  // 2. ä»Ž MOV æå– ContentIdentifier
   const movId = await extractMovContentIdentifier(movBuffer);
 
-  // 3. 验证配对
+  // 3. éªŒè¯é…å¯¹
   if (heicId !== movId) throw new Error('Live Photo pair mismatch');
 
-  // 4. 转换静态图
+  // 4. è½¬æ¢é™æ€å›¾
   const jpeg = await sharp(heicBuffer).jpeg({ quality: 90 }).toBuffer();
 
-  // 5. 转换视频
+  // 5. è½¬æ¢è§†é¢‘
   // ffmpeg -i input.mov -c:v libx264 -c:a aac -movflags +faststart output.mp4
   const mp4 = await ffmpegConvert(movBuffer, {
     videoCodec: 'libx264',
@@ -218,7 +218,7 @@ async function processLivePhoto(heicBuffer: Buffer, movBuffer: Buffer) {
     movflags: '+faststart',
   });
 
-  // 6. 生成缩略图
+  // 6. ç”Ÿæˆç¼©ç•¥å›¾
   const thumb = await sharp(heicBuffer)
     .resize(400)
     .webp({ quality: 80 })
@@ -228,10 +228,10 @@ async function processLivePhoto(heicBuffer: Buffer, movBuffer: Buffer) {
 }
 ```
 
-### 实况照片 Web 展示
+### å®žå†µç…§ç‰‡ Web å±•ç¤º
 
 ```html
-<!-- 使用 Apple LivePhotosKit JS -->
+<!-- ä½¿ç”¨ Apple LivePhotosKit JS -->
 <script src="https://cdn.apple-livephotoskit.com/lpk/1/livephotoskit.js"></script>
 
 <div
@@ -242,71 +242,71 @@ async function processLivePhoto(heicBuffer: Buffer, movBuffer: Buffer) {
 </div>
 ```
 
-### 视频转码
+### è§†é¢‘è½¬ç 
 
 ```typescript
-// VPS 侧
+// VPS ä¾§
 async function transcodeVideo(inputPath: string, outputPath: string) {
-  // 标准 H.264 MP4，web 友好
+  // æ ‡å‡† H.264 MP4ï¼Œweb å‹å¥½
   await exec(`ffmpeg -i ${inputPath} \
     -c:v libx264 -preset medium -crf 23 \
     -c:a aac -b:a 128k \
     -movflags +faststart \
     -y ${outputPath}`);
 
-  // 生成封面帧
+  // ç”Ÿæˆå°é¢å¸§
   await exec(`ffmpeg -i ${inputPath} \
     -ss 00:00:01 -vframes 1 \
     -y ${outputPath}.poster.jpg`);
 }
 ```
 
-### 衍生文件存储
+### è¡ç”Ÿæ–‡ä»¶å­˜å‚¨
 
-处理后的衍生文件以约定的 key 存回 TG + D1：
+å¤„ç†åŽçš„è¡ç”Ÿæ–‡ä»¶ä»¥çº¦å®šçš„ key å­˜å›ž TG + D1ï¼š
 
 ```
-原始文件: photos/IMG_0001.heic
-衍生文件:
+åŽŸå§‹æ–‡ä»¶: photos/IMG_0001.heic
+è¡ç”Ÿæ–‡ä»¶:
   photos/IMG_0001.heic._derivatives/full.jpg
   photos/IMG_0001.heic._derivatives/thumb_400.webp
   photos/IMG_0001.heic._derivatives/thumb_200.webp
-  photos/IMG_0001.heic._derivatives/video.mp4        (实况照片)
-  photos/IMG_0001.heic._derivatives/poster.jpg        (视频封面)
-  photos/IMG_0001.heic._derivatives/metadata.json     (EXIF等)
+  photos/IMG_0001.heic._derivatives/video.mp4        (å®žå†µç…§ç‰‡)
+  photos/IMG_0001.heic._derivatives/poster.jpg        (è§†é¢‘å°é¢)
+  photos/IMG_0001.heic._derivatives/metadata.json     (EXIFç­‰)
 ```
 
-D1 中 objects 表存储衍生文件时，可以加一个字段关联原始文件：
+D1 ä¸­ objects è¡¨å­˜å‚¨è¡ç”Ÿæ–‡ä»¶æ—¶ï¼Œå¯ä»¥åŠ ä¸€ä¸ªå­—æ®µå…³è”åŽŸå§‹æ–‡ä»¶ï¼š
 
 ```sql
 ALTER TABLE objects ADD COLUMN derived_from TEXT;
--- derived_from = 'photos/IMG_0001.heic' 表示这是衍生文件
+-- derived_from = 'photos/IMG_0001.heic' è¡¨ç¤ºè¿™æ˜¯è¡ç”Ÿæ–‡ä»¶
 ```
 
 ---
 
-## 三、文件分享系统
+## ä¸‰ã€æ–‡ä»¶åˆ†äº«ç³»ç»Ÿ
 
-### 分享 Token 生成
+### åˆ†äº« Token ç”Ÿæˆ
 
 ```typescript
 interface ShareOptions {
   bucket: string;
   key: string;
-  expiresIn?: number;       // 秒，null=永不过期
-  password?: string;        // 明文，存储时哈希
-  maxDownloads?: number;    // null=无限制
+  expiresIn?: number;       // ç§’ï¼Œnull=æ°¸ä¸è¿‡æœŸ
+  password?: string;        // æ˜Žæ–‡ï¼Œå­˜å‚¨æ—¶å“ˆå¸Œ
+  maxDownloads?: number;    // null=æ— é™åˆ¶
   note?: string;
 }
 
 async function createShareToken(opts: ShareOptions, env: Env): Promise<ShareTokenRow> {
-  const token = generateToken(32);           // 32字节随机, base64url
+  const token = generateToken(32);           // 32å­—èŠ‚éšæœº, base64url
   const now = new Date().toISOString();
   const expiresAt = opts.expiresIn
     ? new Date(Date.now() + opts.expiresIn * 1000).toISOString()
     : null;
   const passwordHash = opts.password
-    ? await hashPassword(opts.password)       // PBKDF2 (CF Workers 不支持 bcrypt)
+    ? await hashPassword(opts.password)       // PBKDF2 (CF Workers ä¸æ”¯æŒ bcrypt)
     : null;
 
   const row: ShareTokenRow = {
@@ -317,85 +317,85 @@ async function createShareToken(opts: ShareOptions, env: Env): Promise<ShareToke
     download_count: 0, creator: null, note: opts.note ?? null,
   };
   await store.createShareToken(row);
-  return row;                                 // 返回完整 ShareTokenRow，非仅 token 字符串
+  return row;                                 // è¿”å›žå®Œæ•´ ShareTokenRowï¼Œéžä»… token å­—ç¬¦ä¸²
 }
 ```
 
-### 分享链接格式
+### åˆ†äº«é“¾æŽ¥æ ¼å¼
 
 ```
-https://tg-s3.example.com/share/{token}                    (浏览器: HTML 预览页; API: 直接下载)
-https://tg-s3.example.com/share/{token}/download           (强制下载，计入下载次数)
-https://tg-s3.example.com/share/{token}/inline             (内联媒体，用于预览页嵌入，不计下载次数，cookie 验证口令)
-https://tg-s3.example.com/share/{token}/live-video         (实况照片视频组件，不计下载次数，cookie 验证口令)
+https://stratum.example.com/share/{token}                    (æµè§ˆå™¨: HTML é¢„è§ˆé¡µ; API: ç›´æŽ¥ä¸‹è½½)
+https://stratum.example.com/share/{token}/download           (å¼ºåˆ¶ä¸‹è½½ï¼Œè®¡å…¥ä¸‹è½½æ¬¡æ•°)
+https://stratum.example.com/share/{token}/inline             (å†…è”åª’ä½“ï¼Œç”¨äºŽé¢„è§ˆé¡µåµŒå…¥ï¼Œä¸è®¡ä¸‹è½½æ¬¡æ•°ï¼Œcookie éªŒè¯å£ä»¤)
+https://stratum.example.com/share/{token}/live-video         (å®žå†µç…§ç‰‡è§†é¢‘ç»„ä»¶ï¼Œä¸è®¡ä¸‹è½½æ¬¡æ•°ï¼Œcookie éªŒè¯å£ä»¤)
 ```
 
-> 安全说明: `/inline` 和 `/live-video` 不直接验证口令，而是检查 session cookie。口令保护的分享在预览页通过 POST 验证口令后，服务端设置 `HttpOnly; SameSite=Lax; Secure` 的 session cookie（1 小时有效）。后续 `<img>`/`<video>`/`<audio>` 的 src 请求自动携带此 cookie，无需再次输入口令。无口令的分享则无需 cookie，直接返回内容。
+> å®‰å…¨è¯´æ˜Ž: `/inline` å’Œ `/live-video` ä¸ç›´æŽ¥éªŒè¯å£ä»¤ï¼Œè€Œæ˜¯æ£€æŸ¥ session cookieã€‚å£ä»¤ä¿æŠ¤çš„åˆ†äº«åœ¨é¢„è§ˆé¡µé€šè¿‡ POST éªŒè¯å£ä»¤åŽï¼ŒæœåŠ¡ç«¯è®¾ç½® `HttpOnly; SameSite=Lax; Secure` çš„ session cookieï¼ˆ1 å°æ—¶æœ‰æ•ˆï¼‰ã€‚åŽç»­ `<img>`/`<video>`/`<audio>` çš„ src è¯·æ±‚è‡ªåŠ¨æºå¸¦æ­¤ cookieï¼Œæ— éœ€å†æ¬¡è¾“å…¥å£ä»¤ã€‚æ— å£ä»¤çš„åˆ†äº«åˆ™æ— éœ€ cookieï¼Œç›´æŽ¥è¿”å›žå†…å®¹ã€‚
 
-口令提交方式：
-- POST 表单（推荐）: `POST /share/{token}` body 包含 `password` 字段
-- Query param（兼容保留）: `GET /share/{token}?password=xxx`
+å£ä»¤æäº¤æ–¹å¼ï¼š
+- POST è¡¨å•ï¼ˆæŽ¨èï¼‰: `POST /share/{token}` body åŒ…å« `password` å­—æ®µ
+- Query paramï¼ˆå…¼å®¹ä¿ç•™ï¼‰: `GET /share/{token}?password=xxx`
 
-> 安全说明: GET query param 方式会将口令明文暴露在 URL 中（浏览器历史、服务端日志、Referer 头），推荐使用 POST 表单方式提交口令。
+> å®‰å…¨è¯´æ˜Ž: GET query param æ–¹å¼ä¼šå°†å£ä»¤æ˜Žæ–‡æš´éœ²åœ¨ URL ä¸­ï¼ˆæµè§ˆå™¨åŽ†å²ã€æœåŠ¡ç«¯æ—¥å¿—ã€Referer å¤´ï¼‰ï¼ŒæŽ¨èä½¿ç”¨ POST è¡¨å•æ–¹å¼æäº¤å£ä»¤ã€‚
 
-### 分享访问流程
+### åˆ†äº«è®¿é—®æµç¨‹
 
 ```
 GET /share/{token}
-    │
-    ├─ 1. 查 D1 share_tokens 表
-    │
-    ├─ 2. 检查过期
-    │     expires_at IS NOT NULL AND expires_at < NOW → 410 Gone (渲染过期页面)
-    │
-    ├─ 3. 检查下载次数
-    │     download_count >= max_downloads → 410 Gone (渲染次数用尽页面)
-    │
-    ├─ 4. 检查口令 (PBKDF2 验证 + 暴力破解防护)
-    │     password_hash IS NOT NULL
-    │     ├─ 检查 share_password_attempts 表: 同一 token+IP 失败 >=5 次 → 锁定 15 分钟 (429)
-    │     ├─ POST form 或 query param 有 password → 验证哈希
-    │     │   ├─ 失败 → 记录失败次数到 share_password_attempts
-    │     │   └─ 成功 → 清除该 token+IP 的失败记录
-    │     └─ 无 password → 返回 HTML 口令输入页面
-    │
-    ├─ 5. 验证通过, 无 action (只查看预览页, 不计下载次数):
-    │     浏览器访问 (Accept: text/html) → 返回 HTML 预览页
-    │     ├─ 图片 → <img> 内联展示
-    │     ├─ 视频 → <video> 播放器
-    │     ├─ 音频 → <audio> 播放器
-    │     ├─ PDF → <embed> 内嵌预览
-    │     ├─ 文本/JSON/XML (<=512KB) → <pre> 预览 (JS fetch)
-    │     ├─ 实况照片 → LivePhotosKit 展示
-    │     └─ 其他 → 仅显示文件信息和下载按钮
-    │     页面功能: 实时倒计时、复制链接按钮、暗色模式适配
-    │
-    ├─ 6. /download 或 API 访问 → 增加下载计数 → 流式返回文件
-    │
-    ├─ 7. /inline → 检查 session cookie (口令保护时) → 返回文件内容 (不计下载次数)
-    │
-    └─ 8. /live-video → 检查 session cookie (口令保护时) → 返回实况照片视频 (不计下载次数)
+    â”‚
+    â”œâ”€ 1. æŸ¥ D1 share_tokens è¡¨
+    â”‚
+    â”œâ”€ 2. æ£€æŸ¥è¿‡æœŸ
+    â”‚     expires_at IS NOT NULL AND expires_at < NOW â†’ 410 Gone (æ¸²æŸ“è¿‡æœŸé¡µé¢)
+    â”‚
+    â”œâ”€ 3. æ£€æŸ¥ä¸‹è½½æ¬¡æ•°
+    â”‚     download_count >= max_downloads â†’ 410 Gone (æ¸²æŸ“æ¬¡æ•°ç”¨å°½é¡µé¢)
+    â”‚
+    â”œâ”€ 4. æ£€æŸ¥å£ä»¤ (PBKDF2 éªŒè¯ + æš´åŠ›ç ´è§£é˜²æŠ¤)
+    â”‚     password_hash IS NOT NULL
+    â”‚     â”œâ”€ æ£€æŸ¥ share_password_attempts è¡¨: åŒä¸€ token+IP å¤±è´¥ >=5 æ¬¡ â†’ é”å®š 15 åˆ†é’Ÿ (429)
+    â”‚     â”œâ”€ POST form æˆ– query param æœ‰ password â†’ éªŒè¯å“ˆå¸Œ
+    â”‚     â”‚   â”œâ”€ å¤±è´¥ â†’ è®°å½•å¤±è´¥æ¬¡æ•°åˆ° share_password_attempts
+    â”‚     â”‚   â””â”€ æˆåŠŸ â†’ æ¸…é™¤è¯¥ token+IP çš„å¤±è´¥è®°å½•
+    â”‚     â””â”€ æ—  password â†’ è¿”å›ž HTML å£ä»¤è¾“å…¥é¡µé¢
+    â”‚
+    â”œâ”€ 5. éªŒè¯é€šè¿‡, æ—  action (åªæŸ¥çœ‹é¢„è§ˆé¡µ, ä¸è®¡ä¸‹è½½æ¬¡æ•°):
+    â”‚     æµè§ˆå™¨è®¿é—® (Accept: text/html) â†’ è¿”å›ž HTML é¢„è§ˆé¡µ
+    â”‚     â”œâ”€ å›¾ç‰‡ â†’ <img> å†…è”å±•ç¤º
+    â”‚     â”œâ”€ è§†é¢‘ â†’ <video> æ’­æ”¾å™¨
+    â”‚     â”œâ”€ éŸ³é¢‘ â†’ <audio> æ’­æ”¾å™¨
+    â”‚     â”œâ”€ PDF â†’ <embed> å†…åµŒé¢„è§ˆ
+    â”‚     â”œâ”€ æ–‡æœ¬/JSON/XML (<=512KB) â†’ <pre> é¢„è§ˆ (JS fetch)
+    â”‚     â”œâ”€ å®žå†µç…§ç‰‡ â†’ LivePhotosKit å±•ç¤º
+    â”‚     â””â”€ å…¶ä»– â†’ ä»…æ˜¾ç¤ºæ–‡ä»¶ä¿¡æ¯å’Œä¸‹è½½æŒ‰é’®
+    â”‚     é¡µé¢åŠŸèƒ½: å®žæ—¶å€’è®¡æ—¶ã€å¤åˆ¶é“¾æŽ¥æŒ‰é’®ã€æš—è‰²æ¨¡å¼é€‚é…
+    â”‚
+    â”œâ”€ 6. /download æˆ– API è®¿é—® â†’ å¢žåŠ ä¸‹è½½è®¡æ•° â†’ æµå¼è¿”å›žæ–‡ä»¶
+    â”‚
+    â”œâ”€ 7. /inline â†’ æ£€æŸ¥ session cookie (å£ä»¤ä¿æŠ¤æ—¶) â†’ è¿”å›žæ–‡ä»¶å†…å®¹ (ä¸è®¡ä¸‹è½½æ¬¡æ•°)
+    â”‚
+    â””â”€ 8. /live-video â†’ æ£€æŸ¥ session cookie (å£ä»¤ä¿æŠ¤æ—¶) â†’ è¿”å›žå®žå†µç…§ç‰‡è§†é¢‘ (ä¸è®¡ä¸‹è½½æ¬¡æ•°)
 ```
 
-### 分享页面功能（HTML，由 `src/sharing/pages.ts` 渲染）
+### åˆ†äº«é¡µé¢åŠŸèƒ½ï¼ˆHTMLï¼Œç”± `src/sharing/pages.ts` æ¸²æŸ“ï¼‰
 
-实际实现的分享预览页包含以下功能：
+å®žé™…å®žçŽ°çš„åˆ†äº«é¢„è§ˆé¡µåŒ…å«ä»¥ä¸‹åŠŸèƒ½ï¼š
 
-- **多媒体预览**: 图片 `<img>`、视频 `<video>`、音频 `<audio>`、PDF `<embed>`、文本 `<pre>`（JS fetch，<=512KB）
-- **实况照片**: Apple 设备引入 LivePhotosKit JS 播放器；非 Apple 设备（Android 等）降级为图片 + 视频独立展示（JS UA 检测自动切换）
-- **实时倒计时**: JS 每秒更新，显示 "X天X时X分X秒"
-- **下载 + 复制链接**: 双按钮布局，复制链接使用 `navigator.clipboard.writeText`
-- **暗色模式**: `@media(prefers-color-scheme:dark)` 自动适配
-- **口令页面**: 支持 POST 表单提交（`method="POST"`）和 GET query param（`?password=xxx`）两种方式
-- **口令暴力破解防护**: 同一 token+IP 失败 5 次后锁定 15 分钟，返回 429 + Retry-After；成功验证后清除记录；Cron 清理过期记录
-- **过期页面**: 区分 expired / max_downloads / download_failed / not_found 四种状态，显示不同提示文案
+- **å¤šåª’ä½“é¢„è§ˆ**: å›¾ç‰‡ `<img>`ã€è§†é¢‘ `<video>`ã€éŸ³é¢‘ `<audio>`ã€PDF `<embed>`ã€æ–‡æœ¬ `<pre>`ï¼ˆJS fetchï¼Œ<=512KBï¼‰
+- **å®žå†µç…§ç‰‡**: Apple è®¾å¤‡å¼•å…¥ LivePhotosKit JS æ’­æ”¾å™¨ï¼›éž Apple è®¾å¤‡ï¼ˆAndroid ç­‰ï¼‰é™çº§ä¸ºå›¾ç‰‡ + è§†é¢‘ç‹¬ç«‹å±•ç¤ºï¼ˆJS UA æ£€æµ‹è‡ªåŠ¨åˆ‡æ¢ï¼‰
+- **å®žæ—¶å€’è®¡æ—¶**: JS æ¯ç§’æ›´æ–°ï¼Œæ˜¾ç¤º "Xå¤©Xæ—¶Xåˆ†Xç§’"
+- **ä¸‹è½½ + å¤åˆ¶é“¾æŽ¥**: åŒæŒ‰é’®å¸ƒå±€ï¼Œå¤åˆ¶é“¾æŽ¥ä½¿ç”¨ `navigator.clipboard.writeText`
+- **æš—è‰²æ¨¡å¼**: `@media(prefers-color-scheme:dark)` è‡ªåŠ¨é€‚é…
+- **å£ä»¤é¡µé¢**: æ”¯æŒ POST è¡¨å•æäº¤ï¼ˆ`method="POST"`ï¼‰å’Œ GET query paramï¼ˆ`?password=xxx`ï¼‰ä¸¤ç§æ–¹å¼
+- **å£ä»¤æš´åŠ›ç ´è§£é˜²æŠ¤**: åŒä¸€ token+IP å¤±è´¥ 5 æ¬¡åŽé”å®š 15 åˆ†é’Ÿï¼Œè¿”å›ž 429 + Retry-Afterï¼›æˆåŠŸéªŒè¯åŽæ¸…é™¤è®°å½•ï¼›Cron æ¸…ç†è¿‡æœŸè®°å½•
+- **è¿‡æœŸé¡µé¢**: åŒºåˆ† expired / max_downloads / download_failed / not_found å››ç§çŠ¶æ€ï¼Œæ˜¾ç¤ºä¸åŒæç¤ºæ–‡æ¡ˆ
 
-### S3 预签名 URL
+### S3 é¢„ç­¾å URL
 
-标准 S3 预签名 URL 也要支持，供 rclone 等工具使用：
+æ ‡å‡† S3 é¢„ç­¾å URL ä¹Ÿè¦æ”¯æŒï¼Œä¾› rclone ç­‰å·¥å…·ä½¿ç”¨ï¼š
 
 ```
-https://tg-s3.example.com/bucket/key
+https://stratum.example.com/bucket/key
   ?X-Amz-Algorithm=AWS4-HMAC-SHA256
   &X-Amz-Credential=AKID/20260315/auto/s3/aws4_request
   &X-Amz-Date=20260315T080000Z
@@ -404,102 +404,102 @@ https://tg-s3.example.com/bucket/key
   &X-Amz-Signature=abcdef...
 ```
 
-验证流程同 SigV4，从 query params 提取签名信息，重建并校验。
+éªŒè¯æµç¨‹åŒ SigV4ï¼Œä»Ž query params æå–ç­¾åä¿¡æ¯ï¼Œé‡å»ºå¹¶æ ¡éªŒã€‚
 
-`X-Amz-Expires` 上限为 604800 秒（7 天）。生成预签名 URL 时超出此值将被截断；验证外部预签名 URL 时超出此值将直接拒绝（与 AWS S3 行为一致）。
+`X-Amz-Expires` ä¸Šé™ä¸º 604800 ç§’ï¼ˆ7 å¤©ï¼‰ã€‚ç”Ÿæˆé¢„ç­¾å URL æ—¶è¶…å‡ºæ­¤å€¼å°†è¢«æˆªæ–­ï¼›éªŒè¯å¤–éƒ¨é¢„ç­¾å URL æ—¶è¶…å‡ºæ­¤å€¼å°†ç›´æŽ¥æ‹’ç»ï¼ˆä¸Ž AWS S3 è¡Œä¸ºä¸€è‡´ï¼‰ã€‚
 
-### 分享管理 API（非 S3，供 Web UI 和 Bot 使用）
+### åˆ†äº«ç®¡ç† APIï¼ˆéž S3ï¼Œä¾› Web UI å’Œ Bot ä½¿ç”¨ï¼‰
 
 ```
-POST   /api/shares              创建分享
-GET    /api/shares              列出所有分享
-GET    /api/shares/:token       查看分享详情
-DELETE /api/shares/:token       撤销分享
-PATCH  /api/shares/:token       修改分享（延长时效、改口令等）
+POST   /api/shares              åˆ›å»ºåˆ†äº«
+GET    /api/shares              åˆ—å‡ºæ‰€æœ‰åˆ†äº«
+GET    /api/shares/:token       æŸ¥çœ‹åˆ†äº«è¯¦æƒ…
+DELETE /api/shares/:token       æ’¤é”€åˆ†äº«
+PATCH  /api/shares/:token       ä¿®æ”¹åˆ†äº«ï¼ˆå»¶é•¿æ—¶æ•ˆã€æ”¹å£ä»¤ç­‰ï¼‰
 ```
 
 ---
 
-## 四、图床功能
+## å››ã€å›¾åºŠåŠŸèƒ½
 
-### 图床直链
+### å›¾åºŠç›´é“¾
 
-图片上传后，可以通过以下 URL 直接访问：
-
-```
-S3 路径:  https://tg-s3.example.com/images/photo.jpg
-直链:     https://tg-s3.example.com/images/photo.jpg          (原图)
-缩略图:   https://tg-s3.example.com/images/photo.jpg?w=400    (宽度 400px)
-格式转换: https://tg-s3.example.com/images/photo.jpg?fmt=webp  (转 WebP)
-```
-
-### 图片变体请求处理 [已实现]
-
-集成在 `handleGetObject` 中作为 `handleImageVariant` 子流程（`src/handlers/get-object.ts`）。
+å›¾ç‰‡ä¸Šä¼ åŽï¼Œå¯ä»¥é€šè¿‡ä»¥ä¸‹ URL ç›´æŽ¥è®¿é—®ï¼š
 
 ```
-GET /{bucket}/{key}?w=400         → 宽度 400px 变体
-GET /{bucket}/{key}?fmt=webp      → WebP 格式
-GET /{bucket}/{key}?w=200&fmt=webp → 组合
-
-处理流程:
-  1. 检查 Content-Type 是否为图片（isImageContentType）
-  2. 生成变体 key: `{key}._derivatives/w${width || 'orig'}_${format || 'original'}`
-  3. 查 D1 是否已有缓存的变体 → 有则直接返回
-  4. 无 VPS: 回退返回原图（Cache-Control: no-store，防止缓存污染）
-  5. 有 VPS: 调用 GET /api/image/resize?tg_file_id=...&width=...&format=...
-  6. VPS 处理失败: 回退返回原图（Cache-Control: no-store，防止 CDN 将原图缓存为变体）
-  7. 成功: 异步将变体存回 TG + D1（derived_from 关联原始文件），直接返回变体
+S3 è·¯å¾„:  https://stratum.example.com/images/photo.jpg
+ç›´é“¾:     https://stratum.example.com/images/photo.jpg          (åŽŸå›¾)
+ç¼©ç•¥å›¾:   https://stratum.example.com/images/photo.jpg?w=400    (å®½åº¦ 400px)
+æ ¼å¼è½¬æ¢: https://stratum.example.com/images/photo.jpg?fmt=webp  (è½¬ WebP)
 ```
 
-### Markdown/HTML 嵌入支持
+### å›¾ç‰‡å˜ä½“è¯·æ±‚å¤„ç† [å·²å®žçŽ°]
 
-图床典型用法 -- 返回可嵌入的 URL：
+é›†æˆåœ¨ `handleGetObject` ä¸­ä½œä¸º `handleImageVariant` å­æµç¨‹ï¼ˆ`src/handlers/get-object.ts`ï¼‰ã€‚
+
+```
+GET /{bucket}/{key}?w=400         â†’ å®½åº¦ 400px å˜ä½“
+GET /{bucket}/{key}?fmt=webp      â†’ WebP æ ¼å¼
+GET /{bucket}/{key}?w=200&fmt=webp â†’ ç»„åˆ
+
+å¤„ç†æµç¨‹:
+  1. æ£€æŸ¥ Content-Type æ˜¯å¦ä¸ºå›¾ç‰‡ï¼ˆisImageContentTypeï¼‰
+  2. ç”Ÿæˆå˜ä½“ key: `{key}._derivatives/w${width || 'orig'}_${format || 'original'}`
+  3. æŸ¥ D1 æ˜¯å¦å·²æœ‰ç¼“å­˜çš„å˜ä½“ â†’ æœ‰åˆ™ç›´æŽ¥è¿”å›ž
+  4. æ—  VPS: å›žé€€è¿”å›žåŽŸå›¾ï¼ˆCache-Control: no-storeï¼Œé˜²æ­¢ç¼“å­˜æ±¡æŸ“ï¼‰
+  5. æœ‰ VPS: è°ƒç”¨ GET /api/image/resize?tg_file_id=...&width=...&format=...
+  6. VPS å¤„ç†å¤±è´¥: å›žé€€è¿”å›žåŽŸå›¾ï¼ˆCache-Control: no-storeï¼Œé˜²æ­¢ CDN å°†åŽŸå›¾ç¼“å­˜ä¸ºå˜ä½“ï¼‰
+  7. æˆåŠŸ: å¼‚æ­¥å°†å˜ä½“å­˜å›ž TG + D1ï¼ˆderived_from å…³è”åŽŸå§‹æ–‡ä»¶ï¼‰ï¼Œç›´æŽ¥è¿”å›žå˜ä½“
+```
+
+### Markdown/HTML åµŒå…¥æ”¯æŒ
+
+å›¾åºŠå…¸åž‹ç”¨æ³• -- è¿”å›žå¯åµŒå…¥çš„ URLï¼š
 
 ```markdown
-![photo](https://tg-s3.example.com/images/photo.jpg)
-![thumbnail](https://tg-s3.example.com/images/photo.jpg?w=400)
+![photo](https://stratum.example.com/images/photo.jpg)
+![thumbnail](https://stratum.example.com/images/photo.jpg?w=400)
 ```
 
-Worker 对图片请求设置合适的 CORS 和 Cache 头：
+Worker å¯¹å›¾ç‰‡è¯·æ±‚è®¾ç½®åˆé€‚çš„ CORS å’Œ Cache å¤´ï¼š
 
 ```typescript
 headers['Access-Control-Allow-Origin'] = '*';
 headers['Cache-Control'] = 'public, max-age=31536000, immutable';
-headers['Content-Disposition'] = 'inline';  // 浏览器内联显示，不下载
+headers['Content-Disposition'] = 'inline';  // æµè§ˆå™¨å†…è”æ˜¾ç¤ºï¼Œä¸ä¸‹è½½
 ```
 
 ---
 
-## 五、Bot 文件上传
+## äº”ã€Bot æ–‡ä»¶ä¸Šä¼ 
 
-用户直接发送文件给 Bot 即可上传到默认 Bucket：
-
-```
-用户发送文件给 Bot:
-  1. Webhook 收到文件消息 (document/photo/video/audio)
-  2. 提取 file_id, file_unique_id, file_name, file_size, mime_type
-  3. 大小预检: 文件 >20MB 且未配置 VPS 时，提示用户该文件无法通过 S3 API 下载，拒绝记录
-  4. 内容去重: 按 tg_file_unique_id 查询，如已有相同内容的对象则返回提示而非重复记录
-  5. 使用用户通过 /setbucket 设置的默认 Bucket，未设置则选择第一个 (无 Bucket 则提示先创建)
-  6. 文件名冲突时自动加时间戳后缀
-  7. 直接记录 TG file_id 到 D1 (文件已在 TG，无需重新上传)
-  8. 返回上传确认 (bucket 名、文件名、大小)
-```
-
-支持的文件类型：document、photo（取最大尺寸）、video、audio。
-
-### 删除确认机制
-
-Bot 的 `/delete` 命令使用 Inline Keyboard 二次确认：
+ç”¨æˆ·ç›´æŽ¥å‘é€æ–‡ä»¶ç»™ Bot å³å¯ä¸Šä¼ åˆ°é»˜è®¤ Bucketï¼š
 
 ```
-用户: /delete docs report.pdf
-Bot: [显示文件信息 + 确认/取消按钮]
-用户: [点击确认]
-Bot: [删除文件 + D1 记录 + 关联分享，编辑原消息显示结果]
+ç”¨æˆ·å‘é€æ–‡ä»¶ç»™ Bot:
+  1. Webhook æ”¶åˆ°æ–‡ä»¶æ¶ˆæ¯ (document/photo/video/audio)
+  2. æå– file_id, file_unique_id, file_name, file_size, mime_type
+  3. å¤§å°é¢„æ£€: æ–‡ä»¶ >20MB ä¸”æœªé…ç½® VPS æ—¶ï¼Œæç¤ºç”¨æˆ·è¯¥æ–‡ä»¶æ— æ³•é€šè¿‡ S3 API ä¸‹è½½ï¼Œæ‹’ç»è®°å½•
+  4. å†…å®¹åŽ»é‡: æŒ‰ tg_file_unique_id æŸ¥è¯¢ï¼Œå¦‚å·²æœ‰ç›¸åŒå†…å®¹çš„å¯¹è±¡åˆ™è¿”å›žæç¤ºè€Œéžé‡å¤è®°å½•
+  5. ä½¿ç”¨ç”¨æˆ·é€šè¿‡ /setbucket è®¾ç½®çš„é»˜è®¤ Bucketï¼Œæœªè®¾ç½®åˆ™é€‰æ‹©ç¬¬ä¸€ä¸ª (æ—  Bucket åˆ™æç¤ºå…ˆåˆ›å»º)
+  6. æ–‡ä»¶åå†²çªæ—¶è‡ªåŠ¨åŠ æ—¶é—´æˆ³åŽç¼€
+  7. ç›´æŽ¥è®°å½• TG file_id åˆ° D1 (æ–‡ä»¶å·²åœ¨ TGï¼Œæ— éœ€é‡æ–°ä¸Šä¼ )
+  8. è¿”å›žä¸Šä¼ ç¡®è®¤ (bucket åã€æ–‡ä»¶åã€å¤§å°)
 ```
 
-Callback data 格式：`del_yes:{shortId}` / `del_no:{shortId}`。
-使用内存 Map 存储 shortId → {bucket, key} 映射，避免 TG 64 字节 callback_data 限制导致长路径截断。
-映射 5 分钟过期，过期后提示用户重新执行命令。
+æ”¯æŒçš„æ–‡ä»¶ç±»åž‹ï¼šdocumentã€photoï¼ˆå–æœ€å¤§å°ºå¯¸ï¼‰ã€videoã€audioã€‚
+
+### åˆ é™¤ç¡®è®¤æœºåˆ¶
+
+Bot çš„ `/delete` å‘½ä»¤ä½¿ç”¨ Inline Keyboard äºŒæ¬¡ç¡®è®¤ï¼š
+
+```
+ç”¨æˆ·: /delete docs report.pdf
+Bot: [æ˜¾ç¤ºæ–‡ä»¶ä¿¡æ¯ + ç¡®è®¤/å–æ¶ˆæŒ‰é’®]
+ç”¨æˆ·: [ç‚¹å‡»ç¡®è®¤]
+Bot: [åˆ é™¤æ–‡ä»¶ + D1 è®°å½• + å…³è”åˆ†äº«ï¼Œç¼–è¾‘åŽŸæ¶ˆæ¯æ˜¾ç¤ºç»“æžœ]
+```
+
+Callback data æ ¼å¼ï¼š`del_yes:{shortId}` / `del_no:{shortId}`ã€‚
+ä½¿ç”¨å†…å­˜ Map å­˜å‚¨ shortId â†’ {bucket, key} æ˜ å°„ï¼Œé¿å… TG 64 å­—èŠ‚ callback_data é™åˆ¶å¯¼è‡´é•¿è·¯å¾„æˆªæ–­ã€‚
+æ˜ å°„ 5 åˆ†é’Ÿè¿‡æœŸï¼Œè¿‡æœŸåŽæç¤ºç”¨æˆ·é‡æ–°æ‰§è¡Œå‘½ä»¤ã€‚

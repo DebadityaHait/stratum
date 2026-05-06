@@ -1,6 +1,6 @@
 # Configuration Reference
 
-[English](configuration.md) | [中文](configuration.zh.md) | [日本語](configuration.ja.md) | [Français](configuration.fr.md)
+[English](configuration.md) | [ä¸­æ–‡](configuration.zh.md) | [æ—¥æœ¬èªž](configuration.ja.md) | [FranÃ§ais](configuration.fr.md)
 
 ## Environment Variables
 
@@ -48,7 +48,7 @@ API token permissions: Workers Scripts:Edit, D1:Edit, R2:Edit, Account Settings:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VPS_SSH` | SSH connection string for VPS deployment | -- |
-| `VPS_DEPLOY_DIR` | Deployment directory on VPS | `/opt/tg-s3` |
+| `VPS_DEPLOY_DIR` | Deployment directory on VPS | `/opt/stratum` |
 | `VPS_PORT` | Processor service port | `3000` |
 | `VPS_URL` | Public URL of the VPS processor (auto-set when using tunnel) | -- |
 | `VPS_SECRET` | Auth secret between Worker and processor (auto-generated) | -- |
@@ -60,8 +60,8 @@ API token permissions: Workers Scripts:Edit, D1:Edit, R2:Edit, Account Settings:
 1. Go to https://my.telegram.org and log in with your phone number
 2. Click "API development tools"
 3. Fill in the form to create a new application (these fields are just metadata and don't affect functionality):
-   - **App title**: anything, e.g. `tg-s3`
-   - **Short name**: 5-32 alphanumeric characters, e.g. `tgs3s`
+   - **App title**: anything, e.g. `Stratum`
+   - **Short name**: 5-32 alphanumeric characters, e.g. `stratum`
    - **URL**: leave blank
    - **Platform**: select `Other`
    - **Description**: leave blank
@@ -83,12 +83,12 @@ Configured in `wrangler.toml`:
 ```toml
 [[d1_databases]]
 binding = "DB"
-database_name = "tg-s3-db"
+database_name = "stratum-db"
 database_id = "your-database-id"
 
 [[r2_buckets]]
 binding = "CACHE"
-bucket_name = "tg-s3-cache"
+bucket_name = "stratum-cache"
 ```
 
 ## wrangler.toml
@@ -96,7 +96,7 @@ bucket_name = "tg-s3-cache"
 Key configuration sections:
 
 ```toml
-name = "tg-s3"
+name = "stratum"
 main = "src/index.ts"
 compatibility_date = "2026-03-15"
 

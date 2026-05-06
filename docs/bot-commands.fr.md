@@ -1,20 +1,20 @@
 # Commandes du Bot Telegram
 
-[English](bot-commands.md) | [中文](bot-commands.zh.md) | [日本語](bot-commands.ja.md) | [Français](bot-commands.fr.md)
+[English](bot-commands.md) | [ä¸­æ–‡](bot-commands.zh.md) | [æ—¥æœ¬èªž](bot-commands.ja.md) | [FranÃ§ais](bot-commands.fr.md)
 
-## Aperçu
+## AperÃ§u
 
-Le bot TG-S3 fournit une interface Telegram pour gérer votre stockage S3. Toutes les commandes fonctionnent dans le groupe de stockage désigné ou en messages directs avec le bot.
+Le bot Stratum fournit une interface Telegram pour gÃ©rer votre stockage S3. Toutes les commandes fonctionnent dans le groupe de stockage dÃ©signÃ© ou en messages directs avec le bot.
 
 ## Commandes
 
 ### /start
 
-Affiche un message de bienvenue avec une brève introduction et un guide de démarrage rapide.
+Affiche un message de bienvenue avec une brÃ¨ve introduction et un guide de dÃ©marrage rapide.
 
 ### /help
 
-Affiche la référence complète des commandes avec la syntaxe et des exemples.
+Affiche la rÃ©fÃ©rence complÃ¨te des commandes avec la syntaxe et des exemples.
 
 ### /buckets
 
@@ -34,14 +34,14 @@ Buckets (3):
 
 ### /ls
 
-Liste les objets d'un bucket avec filtrage optionnel par préfixe.
+Liste les objets d'un bucket avec filtrage optionnel par prÃ©fixe.
 
 ```
 /ls <bucket> [prefix]
 ```
 
 - Avec un bucket : liste les objets de ce bucket
-- Avec un préfixe : filtre par préfixe de clé (fonctionne comme un listing de répertoire)
+- Avec un prÃ©fixe : filtre par prÃ©fixe de clÃ© (fonctionne comme un listing de rÃ©pertoire)
 
 Exemples :
 ```
@@ -51,7 +51,7 @@ Exemples :
 
 ### /info
 
-Affiche les informations détaillées d'un objet spécifique.
+Affiche les informations dÃ©taillÃ©es d'un objet spÃ©cifique.
 
 ```
 /info <bucket> <key>
@@ -61,55 +61,55 @@ Les informations comprennent : taille, type de contenu, ETag, date d'envoi et no
 
 ### /search
 
-Recherche des objets dans un bucket par motif de clé.
+Recherche des objets dans un bucket par motif de clÃ©.
 
 ```
 /search <bucket> <query>
 ```
 
-La requête est comparée aux clés des objets par recherche de sous-chaîne dans le bucket spécifié.
+La requÃªte est comparÃ©e aux clÃ©s des objets par recherche de sous-chaÃ®ne dans le bucket spÃ©cifiÃ©.
 
 ### /share
 
-Crée un lien de partage pour un fichier avec des restrictions optionnelles.
+CrÃ©e un lien de partage pour un fichier avec des restrictions optionnelles.
 
 ```
 /share <bucket> <key>
 ```
 
-Des paramètres optionnels peuvent être ajoutés après la clé :
+Des paramÃ¨tres optionnels peuvent Ãªtre ajoutÃ©s aprÃ¨s la clÃ© :
 
 ```
 /share <bucket> <key> [expiration_secondes] [mot_de_passe] [max_telechargements]
 ```
 
-- **Expiration** : durée d'expiration en secondes (par défaut : sans expiration)
-- **Mot de passe** : protection par mot de passe (par défaut : aucun)
-- **Max téléchargements** : limite de téléchargement (par défaut : illimité)
+- **Expiration** : durÃ©e d'expiration en secondes (par dÃ©faut : sans expiration)
+- **Mot de passe** : protection par mot de passe (par dÃ©faut : aucun)
+- **Max tÃ©lÃ©chargements** : limite de tÃ©lÃ©chargement (par dÃ©faut : illimitÃ©)
 
-Format du lien généré : `https://your-worker.workers.dev/share/<token>`
+Format du lien gÃ©nÃ©rÃ© : `https://your-worker.workers.dev/share/<token>`
 
 Les liens de partage supportent :
-- `/share/<token>` -- Page d'aperçu avec métadonnées
-- `/share/<token>/download` -- Téléchargement direct
-- `/share/<token>/inline` -- Affichage en ligne (images, vidéos)
+- `/share/<token>` -- Page d'aperÃ§u avec mÃ©tadonnÃ©es
+- `/share/<token>/download` -- TÃ©lÃ©chargement direct
+- `/share/<token>/inline` -- Affichage en ligne (images, vidÃ©os)
 
 ### /shares
 
-Liste tous les tokens de partage actifs (non expirés, non épuisés).
+Liste tous les tokens de partage actifs (non expirÃ©s, non Ã©puisÃ©s).
 
 ```
 /shares [bucket]
 ```
 
 - Sans bucket : liste les partages de tous les buckets
-- Avec bucket : liste uniquement les partages du bucket spécifié
+- Avec bucket : liste uniquement les partages du bucket spÃ©cifiÃ©
 
-Affiche le token, le fichier associé, la date de création, l'expiration, le nombre de téléchargements et le statut du mot de passe.
+Affiche le token, le fichier associÃ©, la date de crÃ©ation, l'expiration, le nombre de tÃ©lÃ©chargements et le statut du mot de passe.
 
 ### /revoke
 
-Révoque un token de partage actif, rendant le lien immédiatement invalide.
+RÃ©voque un token de partage actif, rendant le lien immÃ©diatement invalide.
 
 ```
 /revoke <token>
@@ -117,13 +117,13 @@ Révoque un token de partage actif, rendant le lien immédiatement invalide.
 
 ### /delete
 
-Supprime un objet du stockage. Nécessite une confirmation via un bouton inline.
+Supprime un objet du stockage. NÃ©cessite une confirmation via un bouton inline.
 
 ```
 /delete <bucket> <key>
 ```
 
-La suppression est en cascade complète : supprime le message Telegram, tous les objets dérivés (miniatures, versions transcodées), les tokens de partage associés et les entrées de cache.
+La suppression est en cascade complÃ¨te : supprime le message Telegram, tous les objets dÃ©rivÃ©s (miniatures, versions transcodÃ©es), les tokens de partage associÃ©s et les entrÃ©es de cache.
 
 ### /stats
 
@@ -137,7 +137,7 @@ Les informations comprennent : nombre total d'objets, taille totale et nombre de
 
 ### /setbucket
 
-Définit le bucket par défaut pour l'envoi de fichiers directement au bot.
+DÃ©finit le bucket par dÃ©faut pour l'envoi de fichiers directement au bot.
 
 ```
 /setbucket <name>
@@ -145,7 +145,7 @@ Définit le bucket par défaut pour l'envoi de fichiers directement au bot.
 
 ### /miniapp
 
-Ouvre l'interface Mini App Telegram en ligne pour une gestion complète des fichiers avec une interface graphique.
+Ouvre l'interface Mini App Telegram en ligne pour une gestion complÃ¨te des fichiers avec une interface graphique.
 
 ```
 /miniapp
@@ -153,16 +153,16 @@ Ouvre l'interface Mini App Telegram en ligne pour une gestion complète des fich
 
 ## Envoi de fichiers
 
-Envoyez n'importe quel fichier (document, photo, vidéo, audio) directement au bot pour l'envoyer vers le stockage. Le fichier sera stocké dans le bucket par défaut avec le nom de fichier original comme clé.
+Envoyez n'importe quel fichier (document, photo, vidÃ©o, audio) directement au bot pour l'envoyer vers le stockage. Le fichier sera stockÃ© dans le bucket par dÃ©faut avec le nom de fichier original comme clÃ©.
 
-Pour les photos envoyées en tant qu'images compressées (pas en tant que documents), le bot conserve la version en plus haute résolution disponible.
+Pour les photos envoyÃ©es en tant qu'images compressÃ©es (pas en tant que documents), le bot conserve la version en plus haute rÃ©solution disponible.
 
 ## Actions de callback
 
-Certaines commandes déclenchent des boutons inline pour des flux interactifs :
+Certaines commandes dÃ©clenchent des boutons inline pour des flux interactifs :
 
-- **Confirmation de suppression** -- Boutons "Oui, supprimer" / "Annuler" après `/delete`
-- **Confirmation de révocation** -- Boutons "Confirmer" / "Annuler" après `/revoke`
-- **Pagination** -- "Page suivante" / "Page précédente" pour les listings longs
+- **Confirmation de suppression** -- Boutons "Oui, supprimer" / "Annuler" aprÃ¨s `/delete`
+- **Confirmation de rÃ©vocation** -- Boutons "Confirmer" / "Annuler" aprÃ¨s `/revoke`
+- **Pagination** -- "Page suivante" / "Page prÃ©cÃ©dente" pour les listings longs
 
-Les données de callback ont un TTL de 5 à 10 minutes. Si les boutons ne répondent plus, relancez la commande.
+Les donnÃ©es de callback ont un TTL de 5 Ã  10 minutes. Si les boutons ne rÃ©pondent plus, relancez la commande.

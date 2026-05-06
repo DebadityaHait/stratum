@@ -22,6 +22,10 @@ import { MetadataStore } from './storage/metadata';
 import { TelegramClient } from './telegram/client';
 import { cleanR2Cache } from './handlers/get-object';
 import { renderMiniApp } from './bot/miniapp';
+import { renderDashboard } from './dashboard';
+import { formatSize } from './utils/format';
+
+const DEMO_BUCKET = 'demo';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -33,10 +37,23 @@ export default {
       return addCorsHeaders(handleCors());
     }
 
-    // Bot webhook (verified by secret_token derived from TG_BOT_TOKEN)
+    if (path === '/' && request.method === 'GET' && !url.search) {
+      return new Response(renderDashboard(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
+
+    if (path === '/api/stats' && request.method === 'GET') {
+      return addCorsHeaders(await handleStatsApi(env));
+    }
+
+    const demoResponse = await handlePublicDemoS3(request, url, env, ctx);
+    if (demoResponse) return addCorsHeaders(demoResponse);
+
+    // Bot webhook (verified by Telegram's secret_token)
     if (path === '/bot/webhook' && request.method === 'POST') {
       const secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
-      const expectedSecret = await deriveWebhookSecret(env.TG_BOT_TOKEN);
+      const expectedSecret = env.WEBHOOK_SECRET || await deriveWebhookSecret(env.TG_BOT_TOKEN);
       if (!timingSafeEqual(secret, expectedSecret)) {
         return new Response('Unauthorized', { status: 401 });
       }
@@ -335,6 +352,63 @@ export default {
 
 const ADMIN_CONTEXT: AuthContext = { accessKeyId: '__bearer__', permission: 'admin', buckets: ['*'] };
 
+async function handleStatsApi(env: Env): Promise<Response> {
+  const row = await env.DB.prepare(
+    'SELECT COUNT(*) AS totalFiles, COALESCE(SUM(size), 0) AS totalSize FROM objects'
+  ).first<{ totalFiles: number; totalSize: number }>();
+  const totalFiles = row?.totalFiles ?? 0;
+  const totalSize = row?.totalSize ?? 0;
+  return Response.json({
+    totalFiles,
+    totalSize,
+    totalSizeHuman: formatSize(totalSize),
+  });
+}
+
+async function handlePublicDemoS3(request: Request, url: URL, env: Env, ctx: ExecutionContext): Promise<Response | null> {
+  const { bucket, key } = parseS3Path(url);
+  if (bucket !== DEMO_BUCKET) return null;
+
+  const isList = (request.method === 'GET' && (url.searchParams.has('list-type') || !key));
+  const isUpload = request.method === 'PUT' && !!key;
+  const isRead = (request.method === 'GET' || request.method === 'HEAD') && !!key;
+  if (!isList && !isUpload && !isRead) return null;
+
+  await ensureDemoBucket(env);
+  const s3: S3Request = {
+    method: request.method,
+    bucket: DEMO_BUCKET,
+    key,
+    query: url.searchParams,
+    headers: request.headers,
+    body: request.body,
+    url,
+  };
+
+  if (isUpload) return handlePutObject(s3, env, ctx);
+  if (isRead) return request.method === 'HEAD' ? handleHeadObject(s3, env) : handleGetObject(s3, env, ctx);
+  return url.searchParams.get('list-type') === '2' ? handleListObjectsV2(s3, env) : handleListObjects(s3, env);
+}
+
+async function ensureDemoBucket(env: Env): Promise<void> {
+  const store = new MetadataStore(env);
+  const existing = await store.getBucket(DEMO_BUCKET);
+  if (existing) {
+    if (!existing.is_public) await store.updateBucketPublicAccess(DEMO_BUCKET, true);
+    return;
+  }
+
+  const chatId = env.DEFAULT_CHAT_ID;
+  if (!chatId) throw new Error('DEFAULT_CHAT_ID not configured.');
+  try {
+    await store.createBucket(DEMO_BUCKET, chatId, null, 'Public Stratum demo bucket');
+  } catch (e) {
+    const createdByRace = await store.getBucket(DEMO_BUCKET);
+    if (!createdByRace) throw e;
+  }
+  await store.updateBucketPublicAccess(DEMO_BUCKET, true);
+}
+
 // Module-level credential cache (persists across requests within the same isolate)
 const credentialCache = new Map<string, { cred: { secret_access_key: string; access_key_id: string; permission: string; buckets: string } | null; ts: number }>();
 const CRED_CACHE_TTL = 60_000; // 60 seconds
@@ -420,7 +494,7 @@ async function authenticate(request: Request, url: URL, env: Env): Promise<AuthF
     return { status: 403, code: 'AccessDenied', message: 'No authentication provided.' };
   }
 
-  // Bearer token auth (tg-s3 extension + Telegram WebApp initData validation)
+  // Bearer token auth (Stratum extension + Telegram WebApp initData validation)
   if (auth.startsWith('Bearer ')) {
     const valid = await verifyBearer(request, env);
     return valid
@@ -464,7 +538,7 @@ function authorize(auth: AuthContext, bucket: string, operation: S3Operation): A
 
 // S3 sub-resource query parameters that indicate a distinct operation.
 // If any of these are present, the request must NOT fall through to data
-// operations (GetObject, PutObject, DeleteObject) — doing so could
+// operations (GetObject, PutObject, DeleteObject) â€” doing so could
 // silently corrupt data (e.g. PUT ?acl would overwrite the object with
 // the ACL XML body).
 const UNSUPPORTED_SUBRESOURCES = new Set([
@@ -509,7 +583,7 @@ function routeS3Request(s3: S3Request): S3Operation | null {
     return null;
   }
 
-  // Key present — block unsupported object sub-resource operations before
+  // Key present â€” block unsupported object sub-resource operations before
   // they fall through to data operations (prevents data corruption)
   if (method === 'GET') {
     if (query.has('uploadId')) return 'ListParts';
@@ -548,7 +622,7 @@ function routeS3Request(s3: S3Request): S3Operation | null {
   return null;
 }
 
-// ── Object Tagging handlers ─────────────────────────────────────────
+// â”€â”€ Object Tagging handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function handleGetObjectTagging(s3: S3Request, env: Env): Promise<Response> {
   const store = new MetadataStore(env);
@@ -603,7 +677,7 @@ function unescXml(s: string): string {
   return s.replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 }
 
-// ── Bucket Lifecycle handlers ───────────────────────────────────────
+// â”€â”€ Bucket Lifecycle handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function handleGetBucketLifecycle(s3: S3Request, env: Env): Promise<Response> {
   const store = new MetadataStore(env);
@@ -737,7 +811,7 @@ async function handlePresignApi(request: Request, url: URL, env: Env, auth: Auth
 
 async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: ExecutionContext, auth: AuthContext): Promise<Response> {
   // Mini App API is admin-only; reject non-admin credentials that may have
-  // authenticated via SigV4 (normal Mini App auth uses Bearer → ADMIN_CONTEXT)
+  // authenticated via SigV4 (normal Mini App auth uses Bearer â†’ ADMIN_CONTEXT)
   if (auth.permission !== 'admin') {
     return Response.json({ error: 'Mini App API requires admin credentials' }, { status: 403 });
   }
@@ -1000,7 +1074,7 @@ async function handleMiniAppApi(request: Request, url: URL, env: Env, ctx: Execu
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
       return Array.from(buf).map(b => chars[b % 62]).join('');
     };
-    const accessKeyId = 'TGS3' + toBase62(akBuf).slice(0, 16);
+    const accessKeyId = 'STRATUM' + toBase62(akBuf).slice(0, 16);
     const secretAccessKey = toBase62(skBuf);
     await store.createCredential({
       accessKeyId,

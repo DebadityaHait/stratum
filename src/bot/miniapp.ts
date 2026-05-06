@@ -6,7 +6,7 @@ export function renderMiniApp(origin: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>tg-s3 Drive</title>
+<title>Stratum Drive</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root {
@@ -129,8 +129,8 @@ body {
     <span class="stats" id="globalStats"></span>
     <select class="lang-select" id="langSelect" onchange="setLang(this.value)">
       <option value="en">EN</option>
-      <option value="zh">中文</option>
-      <option value="ja">日本語</option>
+      <option value="zh">ä¸­æ–‡</option>
+      <option value="ja">æ—¥æœ¬èªž</option>
       <option value="fr">FR</option>
     </select>
   </div>
@@ -155,7 +155,7 @@ body {
 
 <script>
 var _i18n = ${JSON.stringify(miniappStrings)};
-var currentLang = localStorage.getItem('tgs3_lang') || 'en';
+var currentLang = localStorage.getItem('stratum_lang') || 'en';
 
 function t(key) {
   var args = Array.prototype.slice.call(arguments, 1);
@@ -168,7 +168,7 @@ function t(key) {
 
 function setLang(lang) {
   currentLang = lang;
-  localStorage.setItem('tgs3_lang', lang);
+  localStorage.setItem('stratum_lang', lang);
   document.getElementById('langSelect').value = lang;
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang === 'ja' ? 'ja' : lang === 'fr' ? 'fr' : 'en';
   applyStaticLabels();
@@ -222,7 +222,7 @@ let fileListGeneration = 0;
   }
   if (params.get('lang') && _i18n[params.get('lang')]) {
     currentLang = params.get('lang');
-    localStorage.setItem('tgs3_lang', currentLang);
+    localStorage.setItem('stratum_lang', currentLang);
   }
   document.getElementById('langSelect').value = currentLang;
   document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : currentLang === 'ja' ? 'ja' : currentLang === 'fr' ? 'fr' : 'en';
@@ -321,7 +321,7 @@ async function loadBuckets() {
         <div style="display:flex;align-items:center;gap:6px">
           <div class="bucket-name">\${esc(b.name)}</div>
           \${b.is_public ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:var(--link);color:var(--btn-text)">' + esc(t('bucket_public_on')) + '</span>' : ''}
-          \${b.optimize_config ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:color-mix(in srgb, #4caf50 15%, transparent);color:#4caf50">⚡</span>' : ''}
+          \${b.optimize_config ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:color-mix(in srgb, #4caf50 15%, transparent);color:#4caf50">âš¡</span>' : ''}
         </div>
         <div class="bucket-meta">\${esc(t('bucket_files_fmt', b.object_count, formatSize(b.total_size)))}</div>
         <span onclick="event.stopPropagation();showBucketSettings('\${escJs(b.name)}')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);padding:8px;cursor:pointer;color:var(--hint);font-size:18px" title="\${esc(t('bucket_settings'))}">&#9881;</span>
@@ -1757,7 +1757,7 @@ document.addEventListener('drop', function(e) {
   }
 });
 
-// ── Keys (Credential management) ─────────────────────────────────────
+// â”€â”€ Keys (Credential management) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function loadKeys() {
   var el = document.getElementById('keysView');
   showSkeleton(el, 3);

@@ -3,7 +3,7 @@ import type { BucketRow, ObjectRow, MultipartPartRow, MultipartUploadRow } from 
 
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8"?>';
 const NS = 'http://s3.amazonaws.com/doc/2006-03-01/';
-const OWNER_XML = '<Owner><ID>tg-s3</ID><DisplayName>tg-s3</DisplayName></Owner>';
+const OWNER_XML = '<Owner><ID>Stratum</ID><DisplayName>Stratum</DisplayName></Owner>';
 
 // Encode a value for XML, optionally URL-encoding first (for encoding-type=url)
 function enc(value: string, urlEncode?: boolean): string {
@@ -86,7 +86,7 @@ export function listPartsXml(bucket: string, key: string, uploadId: string, part
     const lm = pt.created_at ? `<LastModified>${pt.created_at}</LastModified>` : '';
     return `<Part><PartNumber>${pt.part_number}</PartNumber>${lm}<ETag>${encEtag(pt.etag)}</ETag><Size>${pt.size}</Size></Part>`;
   }).join('');
-  return `${XML_HEAD}\n<ListPartsResult xmlns="${NS}"><Bucket>${encodeXml(bucket)}</Bucket><Key>${encodeXml(key)}</Key><UploadId>${encodeXml(uploadId)}</UploadId><Initiator><ID>tg-s3</ID><DisplayName>tg-s3</DisplayName></Initiator>${OWNER_XML}<StorageClass>STANDARD</StorageClass><PartNumberMarker>${partNumberMarker}</PartNumberMarker><MaxParts>${maxParts}</MaxParts><IsTruncated>${isTruncated}</IsTruncated>${nextPartNumberMarker !== undefined ? `<NextPartNumberMarker>${nextPartNumberMarker}</NextPartNumberMarker>` : ''}${p}</ListPartsResult>`;
+  return `${XML_HEAD}\n<ListPartsResult xmlns="${NS}"><Bucket>${encodeXml(bucket)}</Bucket><Key>${encodeXml(key)}</Key><UploadId>${encodeXml(uploadId)}</UploadId><Initiator><ID>Stratum</ID><DisplayName>Stratum</DisplayName></Initiator>${OWNER_XML}<StorageClass>STANDARD</StorageClass><PartNumberMarker>${partNumberMarker}</PartNumberMarker><MaxParts>${maxParts}</MaxParts><IsTruncated>${isTruncated}</IsTruncated>${nextPartNumberMarker !== undefined ? `<NextPartNumberMarker>${nextPartNumberMarker}</NextPartNumberMarker>` : ''}${p}</ListPartsResult>`;
 }
 
 export function listMultipartUploadsXml(p: {
@@ -98,7 +98,7 @@ export function listMultipartUploadsXml(p: {
 }): string {
   const u = p.encodingType === 'url';
   const items = p.uploads.map(up =>
-    `<Upload><Key>${enc(up.key, u)}</Key><UploadId>${encodeXml(up.upload_id)}</UploadId><Initiator><ID>tg-s3</ID><DisplayName>tg-s3</DisplayName></Initiator>${OWNER_XML}<StorageClass>STANDARD</StorageClass><Initiated>${up.created_at}</Initiated></Upload>`
+    `<Upload><Key>${enc(up.key, u)}</Key><UploadId>${encodeXml(up.upload_id)}</UploadId><Initiator><ID>Stratum</ID><DisplayName>Stratum</DisplayName></Initiator>${OWNER_XML}<StorageClass>STANDARD</StorageClass><Initiated>${up.created_at}</Initiated></Upload>`
   ).join('');
   const prefixes = (p.commonPrefixes || []).map(cp => `<CommonPrefixes><Prefix>${enc(cp, u)}</Prefix></CommonPrefixes>`).join('');
   const etEl = u ? '<EncodingType>url</EncodingType>' : '';

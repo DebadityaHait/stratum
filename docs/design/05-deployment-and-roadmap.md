@@ -1,126 +1,126 @@
-# 部署架构与实现路线
+# éƒ¨ç½²æž¶æž„ä¸Žå®žçŽ°è·¯çº¿
 
-## 一、部署拓扑
+## ä¸€ã€éƒ¨ç½²æ‹“æ‰‘
 
-### 最小部署（$0/月，Tier 1 功能）
+### æœ€å°éƒ¨ç½²ï¼ˆ$0/æœˆï¼ŒTier 1 åŠŸèƒ½ï¼‰
 
 ```
-所需资源:
-  - Cloudflare 免费账户
-  - 一个域名（托管在 CF）
+æ‰€éœ€èµ„æº:
+  - Cloudflare å…è´¹è´¦æˆ·
+  - ä¸€ä¸ªåŸŸåï¼ˆæ‰˜ç®¡åœ¨ CFï¼‰
   - Telegram Bot Token
-  - 一个 TG 私有频道/群组（Bot 为管理员）
+  - ä¸€ä¸ª TG ç§æœ‰é¢‘é“/ç¾¤ç»„ï¼ˆBot ä¸ºç®¡ç†å‘˜ï¼‰
 
-部署方式: ./deploy.sh (一键自动化, 自动检测环境)
-  自动完成: D1 创建 + R2 Bucket 创建 + Schema 初始化 + Secrets 配置 + Worker 部署
+éƒ¨ç½²æ–¹å¼: ./deploy.sh (ä¸€é”®è‡ªåŠ¨åŒ–, è‡ªåŠ¨æ£€æµ‹çŽ¯å¢ƒ)
+  è‡ªåŠ¨å®Œæˆ: D1 åˆ›å»º + R2 Bucket åˆ›å»º + Schema åˆå§‹åŒ– + Secrets é…ç½® + Worker éƒ¨ç½²
 
-部署内容:
-  - 1x CF Worker: S3 API Gateway + Cron 定时任务
-  - 1x CF D1 Database: tg-s3-db 元数据
-  - 1x CF R2 Bucket: tg-s3-cache 持久缓存
-  - Telegram Mini App (内置于 Worker)
+éƒ¨ç½²å†…å®¹:
+  - 1x CF Worker: S3 API Gateway + Cron å®šæ—¶ä»»åŠ¡
+  - 1x CF D1 Database: stratum-db å…ƒæ•°æ®
+  - 1x CF R2 Bucket: stratum-cache æŒä¹…ç¼“å­˜
+  - Telegram Mini App (å†…ç½®äºŽ Worker)
 
-能力:
-  - S3 基础 CRUD + List + Multipart
-  - 文件 <=20MB (上传与下载对齐，确保上传的文件可通过 Bot API 下载)
-  - 三层缓存: CDN + R2 + TG
-  - 图床直链 + 图片变体 (?w=, ?fmt= 需 VPS)
-  - 文件分享 (时效/口令/下载限制)
-  - SigV4 + Presigned URL + Telegram initData 认证
-  - Telegram Bot 管理 (13 命令含 /start + 文件上传 + 删除确认)
-  - Mini App 文件管理器
+èƒ½åŠ›:
+  - S3 åŸºç¡€ CRUD + List + Multipart
+  - æ–‡ä»¶ <=20MB (ä¸Šä¼ ä¸Žä¸‹è½½å¯¹é½ï¼Œç¡®ä¿ä¸Šä¼ çš„æ–‡ä»¶å¯é€šè¿‡ Bot API ä¸‹è½½)
+  - ä¸‰å±‚ç¼“å­˜: CDN + R2 + TG
+  - å›¾åºŠç›´é“¾ + å›¾ç‰‡å˜ä½“ (?w=, ?fmt= éœ€ VPS)
+  - æ–‡ä»¶åˆ†äº« (æ—¶æ•ˆ/å£ä»¤/ä¸‹è½½é™åˆ¶)
+  - SigV4 + Presigned URL + Telegram initData è®¤è¯
+  - Telegram Bot ç®¡ç† (13 å‘½ä»¤å« /start + æ–‡ä»¶ä¸Šä¼  + åˆ é™¤ç¡®è®¤)
+  - Mini App æ–‡ä»¶ç®¡ç†å™¨
 ```
 
-### 标准部署（$4/月，全功能）
+### æ ‡å‡†éƒ¨ç½²ï¼ˆ$4/æœˆï¼Œå…¨åŠŸèƒ½ï¼‰
 
 ```
-所需资源:
-  - 上述所有 +
-  - 1x VPS (Hetzner CAX11 ARM, 2C4G, ~$4/月)
+æ‰€éœ€èµ„æº:
+  - ä¸Šè¿°æ‰€æœ‰ +
+  - 1x VPS (Hetzner CAX11 ARM, 2C4G, ~$4/æœˆ)
 
-部署方式: ./deploy.sh (一键自动化 CF + VPS, 自动检测 Docker)
-  Docker 模式: 构建镜像 + 部署 Worker + 配置 Tunnel + 启动服务
+éƒ¨ç½²æ–¹å¼: ./deploy.sh (ä¸€é”®è‡ªåŠ¨åŒ– CF + VPS, è‡ªåŠ¨æ£€æµ‹ Docker)
+  Docker æ¨¡å¼: æž„å»ºé•œåƒ + éƒ¨ç½² Worker + é…ç½® Tunnel + å¯åŠ¨æœåŠ¡
 
-VPS 上运行:
+VPS ä¸Šè¿è¡Œ:
   - Local Telegram Bot API Server (Docker)
-  - 媒体处理服务 (Node.js: sharp + ffmpeg)
-  - HTTP API (供 Worker 调用)
+  - åª’ä½“å¤„ç†æœåŠ¡ (Node.js: sharp + ffmpeg)
+  - HTTP API (ä¾› Worker è°ƒç”¨)
 
-额外能力:
-  - 文件 <=2GB
-  - 文件分块 (>2GB) [Phase 2]
-  - HTTP Range 请求 (大文件 seek)
-  - HEIC/HEIF 转换
-  - 实况照片支持
-  - 视频转码
-  - 图片变体 (?w=, ?fmt=)
-  - 缩略图自动生成
+é¢å¤–èƒ½åŠ›:
+  - æ–‡ä»¶ <=2GB
+  - æ–‡ä»¶åˆ†å— (>2GB) [Phase 2]
+  - HTTP Range è¯·æ±‚ (å¤§æ–‡ä»¶ seek)
+  - HEIC/HEIF è½¬æ¢
+  - å®žå†µç…§ç‰‡æ”¯æŒ
+  - è§†é¢‘è½¬ç 
+  - å›¾ç‰‡å˜ä½“ (?w=, ?fmt=)
+  - ç¼©ç•¥å›¾è‡ªåŠ¨ç”Ÿæˆ
 ```
 
-### 增强部署（$5-9/月，最佳性能）
+### å¢žå¼ºéƒ¨ç½²ï¼ˆ$5-9/æœˆï¼Œæœ€ä½³æ€§èƒ½ï¼‰
 
 ```
-所需资源:
-  - 上述所有 +
-  - CF Workers 付费计划 ($5/月)
+æ‰€éœ€èµ„æº:
+  - ä¸Šè¿°æ‰€æœ‰ +
+  - CF Workers ä»˜è´¹è®¡åˆ’ ($5/æœˆ)
 
-额外能力:
-  - 30s CPU 时间 (复杂请求更宽裕)
-  - 可选: Workers WASM 图片处理 (wasm-vips, 轻量任务不走 VPS)
-  - 无限请求数
+é¢å¤–èƒ½åŠ›:
+  - 30s CPU æ—¶é—´ (å¤æ‚è¯·æ±‚æ›´å®½è£•)
+  - å¯é€‰: Workers WASM å›¾ç‰‡å¤„ç† (wasm-vips, è½»é‡ä»»åŠ¡ä¸èµ° VPS)
+  - æ— é™è¯·æ±‚æ•°
 ```
 
-## 二、VPS 部署详情
+## äºŒã€VPS éƒ¨ç½²è¯¦æƒ…
 
-### 一键部署
+### ä¸€é”®éƒ¨ç½²
 
-所有部署操作通过 `./deploy.sh` 一条命令完成，脚本自动检测运行环境:
+æ‰€æœ‰éƒ¨ç½²æ“ä½œé€šè¿‡ `./deploy.sh` ä¸€æ¡å‘½ä»¤å®Œæˆï¼Œè„šæœ¬è‡ªåŠ¨æ£€æµ‹è¿è¡ŒçŽ¯å¢ƒ:
 
-| 环境 | 行为 |
+| çŽ¯å¢ƒ | è¡Œä¸º |
 |------|------|
-| 宿主机 + Docker | 构建镜像 + 部署 CF Worker + 配置 Tunnel + 启动服务 |
-| 宿主机 + 无 Docker | 使用本地 wrangler 部署 CF Worker |
-| Docker 容器内 | 仅部署 CF Worker (由宿主机编排调用) |
+| å®¿ä¸»æœº + Docker | æž„å»ºé•œåƒ + éƒ¨ç½² CF Worker + é…ç½® Tunnel + å¯åŠ¨æœåŠ¡ |
+| å®¿ä¸»æœº + æ—  Docker | ä½¿ç”¨æœ¬åœ° wrangler éƒ¨ç½² CF Worker |
+| Docker å®¹å™¨å†… | ä»…éƒ¨ç½² CF Worker (ç”±å®¿ä¸»æœºç¼–æŽ’è°ƒç”¨) |
 
 ```bash
-# 首次部署 (一条命令)
+# é¦–æ¬¡éƒ¨ç½² (ä¸€æ¡å‘½ä»¤)
 cp .env.example .env
-vim .env     # 填写 TG_BOT_TOKEN, DEFAULT_CHAT_ID, CLOUDFLARE_API_TOKEN
+vim .env     # å¡«å†™ TG_BOT_TOKEN, DEFAULT_CHAT_ID, CLOUDFLARE_API_TOKEN
 ./deploy.sh
 
-# 更新代码后重新部署 (一条命令)
+# æ›´æ–°ä»£ç åŽé‡æ–°éƒ¨ç½² (ä¸€æ¡å‘½ä»¤)
 git pull && ./deploy.sh
 
-# 仅重启服务 (不重新部署 Worker)
+# ä»…é‡å¯æœåŠ¡ (ä¸é‡æ–°éƒ¨ç½² Worker)
 docker compose --profile tunnel restart
 
-# 停止所有服务
+# åœæ­¢æ‰€æœ‰æœåŠ¡
 docker compose --profile tunnel down
 
-# 查看日志
+# æŸ¥çœ‹æ—¥å¿—
 docker compose --profile tunnel logs -f
 ```
 
-### Docker Compose 架构
+### Docker Compose æž¶æž„
 
 ```yaml
 services:
-  # CF Worker 部署服务 (一次性, 由 ./deploy.sh 编排调用)
-  # profiles: [deploy] -- 不会随 docker compose up 自动启动
+  # CF Worker éƒ¨ç½²æœåŠ¡ (ä¸€æ¬¡æ€§, ç”± ./deploy.sh ç¼–æŽ’è°ƒç”¨)
+  # profiles: [deploy] -- ä¸ä¼šéš docker compose up è‡ªåŠ¨å¯åŠ¨
   deploy:
     build:
       context: .
       dockerfile: Dockerfile.deploy
     env_file: .env
     volumes:
-      - ./.env:/app/.env    # 挂载 .env, 容器内修改可持久化
+      - ./.env:/app/.env    # æŒ‚è½½ .env, å®¹å™¨å†…ä¿®æ”¹å¯æŒä¹…åŒ–
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CF_ACCOUNT_ID=${CF_ACCOUNT_ID:-}
     restart: "no"
     profiles: [deploy]
 
-  # Telegram Local Bot API: 解除文件大小限制 (20MB -> 2GB)
+  # Telegram Local Bot API: è§£é™¤æ–‡ä»¶å¤§å°é™åˆ¶ (20MB -> 2GB)
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
     restart: unless-stopped
@@ -132,8 +132,8 @@ services:
       - tg-bot-api-data:/var/lib/telegram-bot-api
     profiles: [localapi]
 
-  # 媒体处理 + 大文件代理服务 (常驻)
-  # Tunnel 通过 Docker 内部网络访问, 无需暴露宿主机端口
+  # åª’ä½“å¤„ç† + å¤§æ–‡ä»¶ä»£ç†æœåŠ¡ (å¸¸é©»)
+  # Tunnel é€šè¿‡ Docker å†…éƒ¨ç½‘ç»œè®¿é—®, æ— éœ€æš´éœ²å®¿ä¸»æœºç«¯å£
   processor:
     build: ./processor
     restart: unless-stopped
@@ -143,9 +143,9 @@ services:
       - AUTH_SECRET=${VPS_SECRET}
       - TG_LOCAL_API=${TG_LOCAL_API:-https://api.telegram.org}
       - DEFAULT_CHAT_ID=${DEFAULT_CHAT_ID}
-      - TEMP_DIR=/tmp/tg-s3
+      - TEMP_DIR=/tmp/stratum
     volumes:
-      - processor-data:/tmp/tg-s3
+      - processor-data:/tmp/stratum
 
   # Cloudflare Tunnel (profiles: [tunnel])
   tunnel:
@@ -162,44 +162,44 @@ volumes:
   tg-bot-api-data:
 ```
 
-### deploy.sh 编排流程 (Docker 模式)
+### deploy.sh ç¼–æŽ’æµç¨‹ (Docker æ¨¡å¼)
 
 ```
 ./deploy.sh
-  1. 加载 .env, 校验必填项, 自动生成 VPS_SECRET
-  2. 检测到 Docker -> 进入 Docker 编排模式
-  3. 逐个构建镜像 (避免 BuildKit 并行构建 bug)
+  1. åŠ è½½ .env, æ ¡éªŒå¿…å¡«é¡¹, è‡ªåŠ¨ç”Ÿæˆ VPS_SECRET
+  2. æ£€æµ‹åˆ° Docker -> è¿›å…¥ Docker ç¼–æŽ’æ¨¡å¼
+  3. é€ä¸ªæž„å»ºé•œåƒ (é¿å… BuildKit å¹¶è¡Œæž„å»º bug)
      docker compose build deploy
      docker compose build processor
-  4. 运行 deploy 容器 (部署 CF Worker + 配置 Tunnel)
+  4. è¿è¡Œ deploy å®¹å™¨ (éƒ¨ç½² CF Worker + é…ç½® Tunnel)
      docker compose --profile deploy run --rm -T deploy
-     容器内: deploy_cf() + setup_tunnel()
-     .env 以 volume 挂载, CF_TUNNEL_TOKEN 等自动持久化
-  5. 重新加载 .env, 启动常驻服务
+     å®¹å™¨å†…: deploy_cf() + setup_tunnel()
+     .env ä»¥ volume æŒ‚è½½, CF_TUNNEL_TOKEN ç­‰è‡ªåŠ¨æŒä¹…åŒ–
+  5. é‡æ–°åŠ è½½ .env, å¯åŠ¨å¸¸é©»æœåŠ¡
      docker compose --profile tunnel up -d
-  6. 健康检查 + 打印摘要
+  6. å¥åº·æ£€æŸ¥ + æ‰“å°æ‘˜è¦
 ```
 
 ### Caddyfile
 
 ```
-vps.tg-s3.example.com {
-    reverse_proxy tg-s3-processor:3000
+vps.stratum.example.com {
+    reverse_proxy stratum-processor:3000
 
     header {
         Strict-Transport-Security "max-age=31536000"
     }
 
-    # 仅允许来自 CF Worker 的请求
+    # ä»…å…è®¸æ¥è‡ª CF Worker çš„è¯·æ±‚
     @not-cf {
         not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22
-        # ... 完整 CF IP 列表
+        # ... å®Œæ•´ CF IP åˆ—è¡¨
     }
     respond @not-cf 403
 }
 ```
 
-### 处理服务 Dockerfile
+### å¤„ç†æœåŠ¡ Dockerfile
 
 ```dockerfile
 FROM node:22-slim
@@ -219,141 +219,141 @@ EXPOSE 3000
 CMD ["node", "server.js"]
 ```
 
-### VPS 安全
+### VPS å®‰å…¨
 
-| 措施 | 说明 |
+| æŽªæ–½ | è¯´æ˜Ž |
 |------|------|
-| IP 白名单 | 只接受 CF Worker IP 段的请求 |
-| 共享密钥 | Worker 请求携带 `Authorization: Bearer ${VPS_SECRET}`，VPS 验证 |
-| HTTPS | Caddy 自动 Let's Encrypt |
-| 防火墙 | 只开放 443，关闭 SSH 密码登录 |
-| Docker 网络隔离 | 服务间通过 Docker 内部网络通信 |
+| IP ç™½åå• | åªæŽ¥å— CF Worker IP æ®µçš„è¯·æ±‚ |
+| å…±äº«å¯†é’¥ | Worker è¯·æ±‚æºå¸¦ `Authorization: Bearer ${VPS_SECRET}`ï¼ŒVPS éªŒè¯ |
+| HTTPS | Caddy è‡ªåŠ¨ Let's Encrypt |
+| é˜²ç«å¢™ | åªå¼€æ”¾ 443ï¼Œå…³é—­ SSH å¯†ç ç™»å½• |
+| Docker ç½‘ç»œéš”ç¦» | æœåŠ¡é—´é€šè¿‡ Docker å†…éƒ¨ç½‘ç»œé€šä¿¡ |
 
-## 三、CF Worker 部署
+## ä¸‰ã€CF Worker éƒ¨ç½²
 
 ### wrangler.toml
 
 ```toml
-name = "tg-s3"
+name = "Stratum"
 main = "src/index.ts"
 compatibility_date = "2026-03-15"
 
 [vars]
 S3_REGION = "us-east-1"
 
-# Secrets (通过 wrangler secret put 设置，不写入 toml):
-# TG_BOT_TOKEN, DEFAULT_CHAT_ID, VPS_URL (可选), VPS_SECRET (可选)
-# S3 凭据存储在 D1 credentials 表中，Webhook 密钥由 TG_BOT_TOKEN 派生
+# Secrets (é€šè¿‡ wrangler secret put è®¾ç½®ï¼Œä¸å†™å…¥ toml):
+# TG_BOT_TOKEN, DEFAULT_CHAT_ID, VPS_URL (å¯é€‰), VPS_SECRET (å¯é€‰)
+# S3 å‡­æ®å­˜å‚¨åœ¨ D1 credentials è¡¨ä¸­ï¼ŒWebhook å¯†é’¥ç”± TG_BOT_TOKEN æ´¾ç”Ÿ
 
 [[d1_databases]]
 binding = "DB"
-database_name = "tg-s3-db"
+database_name = "stratum-db"
 database_id = ""
 
 [[r2_buckets]]
 binding = "CACHE"
-bucket_name = "tg-s3-cache"
+bucket_name = "stratum-cache"
 
 [triggers]
-crons = ["0 */6 * * *"]  # 每 6 小时: 8 项清理 (过期/孤儿分享, 过期 multipart, D1-TG 一致性, R2 缓存, 密码锁定, 孤儿分块, 生命周期过期)
+crons = ["0 */6 * * *"]  # æ¯ 6 å°æ—¶: 8 é¡¹æ¸…ç† (è¿‡æœŸ/å­¤å„¿åˆ†äº«, è¿‡æœŸ multipart, D1-TG ä¸€è‡´æ€§, R2 ç¼“å­˜, å¯†ç é”å®š, å­¤å„¿åˆ†å—, ç”Ÿå‘½å‘¨æœŸè¿‡æœŸ)
 ```
 
-### Worker 项目结构
+### Worker é¡¹ç›®ç»“æž„
 
 ```
 src/
-├── index.ts                 # 入口: 请求路由 + Cron handler + Mini App API
-├── types.ts                 # 类型定义: Env, ObjectRow, S3Request, TG types 等
-├── constants.ts             # 常量: TG API 限制, S3 限制, 超时参数
-├── auth/
-│   ├── sigv4.ts            # AWS SigV4 验证
-│   ├── bearer.ts           # Bearer Token 验证
-│   └── presigned.ts        # 预签名 URL 生成/验证
-├── handlers/
-│   ├── get-object.ts       # GetObject + 三层缓存 + R2 管理 + 图片变体
-│   ├── put-object.ts       # PutObject + 覆盖写 + 缓存清除
-│   ├── delete-object.ts    # DeleteObject + DeleteObjects 批量删除 + 缓存清除
-│   ├── head-object.ts
-│   ├── list-objects.ts     # ListObjectsV2 + ListObjects (v1)
-│   ├── copy-object.ts      # CopyObject + 缓存清除
-│   ├── multipart.ts        # Multipart Upload 全部操作 (含 UploadPartCopy)
-│   ├── bucket.ts           # Bucket CRUD + GetBucketLocation + GetBucketVersioning
-│   └── share.ts            # 分享 CRUD API + 公开分享访问
-├── telegram/
-│   ├── client.ts           # TG Bot API 封装
-│   ├── upload.ts           # 上传逻辑 (直传 + VPS 代理)
-│   └── download.ts         # 下载逻辑 (直取封装, VPS 代理在 handlers 层)
-├── storage/
-│   ├── metadata.ts         # D1 操作封装
-│   └── schema.sql          # 建表 SQL (含 migration 注释)
-├── rate-limit/
-│   └── limiter.ts          # 令牌桶限速器 (内存实现)
-├── bot/
-│   ├── webhook.ts          # TG Bot webhook + Callback Query + 文件上传 + setMyCommands
-│   ├── commands.ts         # Bot 命令实现 (13 个命令含 /start)
-│   └── miniapp.ts          # Telegram Mini App (内联 HTML/CSS/JS)
-├── sharing/
-│   ├── tokens.ts           # Token 生成/验证 (PBKDF2)
-│   └── pages.ts            # HTML 分享页面渲染 (暗色模式, 倒计时, 多格式预览)
-├── media/
-│   └── vps-client.ts       # VPS 媒体处理客户端
-├── xml/
-│   ├── builder.ts          # S3 XML 响应构建器
-│   └── parser.ts           # S3 XML 请求解析器
-└── utils/
-    ├── crypto.ts           # SHA256, HMAC, PBKDF2
-    ├── sse.ts              # SSE-C / SSE-S3 加密工具 (AES-256-GCM via Web Crypto)
-    ├── path.ts             # S3 路径解析
-    ├── headers.ts          # S3 headers/Range/ETag 处理
-    └── format.ts           # 共享格式化工具 (formatSize, escHtml)
+â”œâ”€â”€ index.ts                 # å…¥å£: è¯·æ±‚è·¯ç”± + Cron handler + Mini App API
+â”œâ”€â”€ types.ts                 # ç±»åž‹å®šä¹‰: Env, ObjectRow, S3Request, TG types ç­‰
+â”œâ”€â”€ constants.ts             # å¸¸é‡: TG API é™åˆ¶, S3 é™åˆ¶, è¶…æ—¶å‚æ•°
+â”œâ”€â”€ auth/
+â”‚   â”œâ”€â”€ sigv4.ts            # AWS SigV4 éªŒè¯
+â”‚   â”œâ”€â”€ bearer.ts           # Bearer Token éªŒè¯
+â”‚   â””â”€â”€ presigned.ts        # é¢„ç­¾å URL ç”Ÿæˆ/éªŒè¯
+â”œâ”€â”€ handlers/
+â”‚   â”œâ”€â”€ get-object.ts       # GetObject + ä¸‰å±‚ç¼“å­˜ + R2 ç®¡ç† + å›¾ç‰‡å˜ä½“
+â”‚   â”œâ”€â”€ put-object.ts       # PutObject + è¦†ç›–å†™ + ç¼“å­˜æ¸…é™¤
+â”‚   â”œâ”€â”€ delete-object.ts    # DeleteObject + DeleteObjects æ‰¹é‡åˆ é™¤ + ç¼“å­˜æ¸…é™¤
+â”‚   â”œâ”€â”€ head-object.ts
+â”‚   â”œâ”€â”€ list-objects.ts     # ListObjectsV2 + ListObjects (v1)
+â”‚   â”œâ”€â”€ copy-object.ts      # CopyObject + ç¼“å­˜æ¸…é™¤
+â”‚   â”œâ”€â”€ multipart.ts        # Multipart Upload å…¨éƒ¨æ“ä½œ (å« UploadPartCopy)
+â”‚   â”œâ”€â”€ bucket.ts           # Bucket CRUD + GetBucketLocation + GetBucketVersioning
+â”‚   â””â”€â”€ share.ts            # åˆ†äº« CRUD API + å…¬å¼€åˆ†äº«è®¿é—®
+â”œâ”€â”€ telegram/
+â”‚   â”œâ”€â”€ client.ts           # TG Bot API å°è£…
+â”‚   â”œâ”€â”€ upload.ts           # ä¸Šä¼ é€»è¾‘ (ç›´ä¼  + VPS ä»£ç†)
+â”‚   â””â”€â”€ download.ts         # ä¸‹è½½é€»è¾‘ (ç›´å–å°è£…, VPS ä»£ç†åœ¨ handlers å±‚)
+â”œâ”€â”€ storage/
+â”‚   â”œâ”€â”€ metadata.ts         # D1 æ“ä½œå°è£…
+â”‚   â””â”€â”€ schema.sql          # å»ºè¡¨ SQL (å« migration æ³¨é‡Š)
+â”œâ”€â”€ rate-limit/
+â”‚   â””â”€â”€ limiter.ts          # ä»¤ç‰Œæ¡¶é™é€Ÿå™¨ (å†…å­˜å®žçŽ°)
+â”œâ”€â”€ bot/
+â”‚   â”œâ”€â”€ webhook.ts          # TG Bot webhook + Callback Query + æ–‡ä»¶ä¸Šä¼  + setMyCommands
+â”‚   â”œâ”€â”€ commands.ts         # Bot å‘½ä»¤å®žçŽ° (13 ä¸ªå‘½ä»¤å« /start)
+â”‚   â””â”€â”€ miniapp.ts          # Telegram Mini App (å†…è” HTML/CSS/JS)
+â”œâ”€â”€ sharing/
+â”‚   â”œâ”€â”€ tokens.ts           # Token ç”Ÿæˆ/éªŒè¯ (PBKDF2)
+â”‚   â””â”€â”€ pages.ts            # HTML åˆ†äº«é¡µé¢æ¸²æŸ“ (æš—è‰²æ¨¡å¼, å€’è®¡æ—¶, å¤šæ ¼å¼é¢„è§ˆ)
+â”œâ”€â”€ media/
+â”‚   â””â”€â”€ vps-client.ts       # VPS åª’ä½“å¤„ç†å®¢æˆ·ç«¯
+â”œâ”€â”€ xml/
+â”‚   â”œâ”€â”€ builder.ts          # S3 XML å“åº”æž„å»ºå™¨
+â”‚   â””â”€â”€ parser.ts           # S3 XML è¯·æ±‚è§£æžå™¨
+â””â”€â”€ utils/
+    â”œâ”€â”€ crypto.ts           # SHA256, HMAC, PBKDF2
+    â”œâ”€â”€ sse.ts              # SSE-C / SSE-S3 åŠ å¯†å·¥å…· (AES-256-GCM via Web Crypto)
+    â”œâ”€â”€ path.ts             # S3 è·¯å¾„è§£æž
+    â”œâ”€â”€ headers.ts          # S3 headers/Range/ETag å¤„ç†
+    â””â”€â”€ format.ts           # å…±äº«æ ¼å¼åŒ–å·¥å…· (formatSize, escHtml)
 ```
 
-## 四、Telegram Bot 管理界面
+## å››ã€Telegram Bot ç®¡ç†ç•Œé¢
 
-### Bot 命令设计
-
-```
-/start               - 欢迎介绍 + 快速上手引导 (TG 内建，不计入 setMyCommands)
-/help                - 完整命令列表
-/buckets             - 列出所有 Buckets
-/ls <bucket> [prefix] [页码] - 列出文件 (支持分页，每页 20 条)
-/info <bucket> <key> - 文件详情
-/delete <bucket> <key> - 删除文件
-/search <bucket> <keyword> - 搜索文件名
-/share <bucket> <key> [秒数] [口令] [最大次数] - 生成分享链接
-/shares [bucket]     - 列出分享
-/revoke <token>      - 撤销分享
-/stats               - 存储统计
-/setbucket [name]    - 设置默认上传 Bucket (无参数时显示当前设置和可用列表)
-/miniapp             - 打开网盘管理 Mini App (发送 web_app 按钮，点击即可内联打开)
-直接发送文件            - 自动上传到默认 Bucket (可通过 /setbucket 设置)
-```
-
-> **多语言支持**: Bot 所有消息支持 EN/ZH/JA/FR 四种语言，基于用户 Telegram 客户端语言自动检测
-> (`from.language_code`)。命令描述通过 `setMyCommands` 按语言注册，不支持的语言回退到英文。
-
-### Bot 交互流程
+### Bot å‘½ä»¤è®¾è®¡
 
 ```
-用户直接发送文件给 Bot:
-  1. Bot 收到文件 (通过 webhook)
-  2. 自动识别文件类型 (document/photo/video/audio)
-  3. 记录 file_id 到默认 Bucket 的 D1 元数据
-  4. 返回上传确认 (bucket名、文件名、大小)
-  注: 文件名冲突时自动加时间戳后缀
-
-用户发送 /share docs report.pdf 86400 mypass:
-  1. 解析参数: bucket=docs, key=report.pdf, expires=86400秒, password=mypass
-  2. 生成分享 Token (PBKDF2 哈希口令)
-  3. 返回分享 Token 和链接
+/start               - æ¬¢è¿Žä»‹ç» + å¿«é€Ÿä¸Šæ‰‹å¼•å¯¼ (TG å†…å»ºï¼Œä¸è®¡å…¥ setMyCommands)
+/help                - å®Œæ•´å‘½ä»¤åˆ—è¡¨
+/buckets             - åˆ—å‡ºæ‰€æœ‰ Buckets
+/ls <bucket> [prefix] [é¡µç ] - åˆ—å‡ºæ–‡ä»¶ (æ”¯æŒåˆ†é¡µï¼Œæ¯é¡µ 20 æ¡)
+/info <bucket> <key> - æ–‡ä»¶è¯¦æƒ…
+/delete <bucket> <key> - åˆ é™¤æ–‡ä»¶
+/search <bucket> <keyword> - æœç´¢æ–‡ä»¶å
+/share <bucket> <key> [ç§’æ•°] [å£ä»¤] [æœ€å¤§æ¬¡æ•°] - ç”Ÿæˆåˆ†äº«é“¾æŽ¥
+/shares [bucket]     - åˆ—å‡ºåˆ†äº«
+/revoke <token>      - æ’¤é”€åˆ†äº«
+/stats               - å­˜å‚¨ç»Ÿè®¡
+/setbucket [name]    - è®¾ç½®é»˜è®¤ä¸Šä¼  Bucket (æ— å‚æ•°æ—¶æ˜¾ç¤ºå½“å‰è®¾ç½®å’Œå¯ç”¨åˆ—è¡¨)
+/miniapp             - æ‰“å¼€ç½‘ç›˜ç®¡ç† Mini App (å‘é€ web_app æŒ‰é’®ï¼Œç‚¹å‡»å³å¯å†…è”æ‰“å¼€)
+ç›´æŽ¥å‘é€æ–‡ä»¶            - è‡ªåŠ¨ä¸Šä¼ åˆ°é»˜è®¤ Bucket (å¯é€šè¿‡ /setbucket è®¾ç½®)
 ```
 
-### Webhook 处理
+> **å¤šè¯­è¨€æ”¯æŒ**: Bot æ‰€æœ‰æ¶ˆæ¯æ”¯æŒ EN/ZH/JA/FR å››ç§è¯­è¨€ï¼ŒåŸºäºŽç”¨æˆ· Telegram å®¢æˆ·ç«¯è¯­è¨€è‡ªåŠ¨æ£€æµ‹
+> (`from.language_code`)ã€‚å‘½ä»¤æè¿°é€šè¿‡ `setMyCommands` æŒ‰è¯­è¨€æ³¨å†Œï¼Œä¸æ”¯æŒçš„è¯­è¨€å›žé€€åˆ°è‹±æ–‡ã€‚
 
-Worker 同时处理 S3 API 和 TG Bot Webhook：
+### Bot äº¤äº’æµç¨‹
+
+```
+ç”¨æˆ·ç›´æŽ¥å‘é€æ–‡ä»¶ç»™ Bot:
+  1. Bot æ”¶åˆ°æ–‡ä»¶ (é€šè¿‡ webhook)
+  2. è‡ªåŠ¨è¯†åˆ«æ–‡ä»¶ç±»åž‹ (document/photo/video/audio)
+  3. è®°å½• file_id åˆ°é»˜è®¤ Bucket çš„ D1 å…ƒæ•°æ®
+  4. è¿”å›žä¸Šä¼ ç¡®è®¤ (bucketåã€æ–‡ä»¶åã€å¤§å°)
+  æ³¨: æ–‡ä»¶åå†²çªæ—¶è‡ªåŠ¨åŠ æ—¶é—´æˆ³åŽç¼€
+
+ç”¨æˆ·å‘é€ /share docs report.pdf 86400 mypass:
+  1. è§£æžå‚æ•°: bucket=docs, key=report.pdf, expires=86400ç§’, password=mypass
+  2. ç”Ÿæˆåˆ†äº« Token (PBKDF2 å“ˆå¸Œå£ä»¤)
+  3. è¿”å›žåˆ†äº« Token å’Œé“¾æŽ¥
+```
+
+### Webhook å¤„ç†
+
+Worker åŒæ—¶å¤„ç† S3 API å’Œ TG Bot Webhookï¼š
 
 ```typescript
-// 路由区分 (secret_token 验证 webhook 合法性，时序安全比较)
+// è·¯ç”±åŒºåˆ† (secret_token éªŒè¯ webhook åˆæ³•æ€§ï¼Œæ—¶åºå®‰å…¨æ¯”è¾ƒ)
 if (path === '/bot/webhook' && request.method === 'POST') {
   const secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
   if (!timingSafeEqual(secret, await deriveWebhookSecret(env.TG_BOT_TOKEN))) return new Response('Unauthorized', { status: 401 });
@@ -361,290 +361,290 @@ if (path === '/bot/webhook' && request.method === 'POST') {
 }
 // Mini App
 if (path === '/miniapp') return renderMiniApp(url.origin);
-// 分享访问 (无需认证)
+// åˆ†äº«è®¿é—® (æ— éœ€è®¤è¯)
 if (path.startsWith('/share/')) return handleShareAccess(request, url, env);
-// 其余走 S3 路由 (需认证)
+// å…¶ä½™èµ° S3 è·¯ç”± (éœ€è®¤è¯)
 ```
 
-## 五、Web UI 文件管理器 (Telegram Mini App)
+## äº”ã€Web UI æ–‡ä»¶ç®¡ç†å™¨ (Telegram Mini App)
 
-> 实际实现为 Telegram Mini App，取代了原设计的 CF Pages 独立应用。
-> HTML/CSS/JS 内联在 Worker 中，通过 `/miniapp` 路由提供。
+> å®žé™…å®žçŽ°ä¸º Telegram Mini Appï¼Œå–ä»£äº†åŽŸè®¾è®¡çš„ CF Pages ç‹¬ç«‹åº”ç”¨ã€‚
+> HTML/CSS/JS å†…è”åœ¨ Worker ä¸­ï¼Œé€šè¿‡ `/miniapp` è·¯ç”±æä¾›ã€‚
 
-### 技术栈
+### æŠ€æœ¯æ ˆ
 
-- 纯 HTML/CSS/JS (无框架依赖，~1600 行内联代码)
-- Telegram WebApp JS SDK (主题色适配)
-- 部署: Worker 内联提供 (无需 CF Pages)
-- API: 调用 `/api/miniapp/*` 管理 API (上传/下载/预览均通过内部端点，无需 S3 凭据)
+- çº¯ HTML/CSS/JS (æ— æ¡†æž¶ä¾èµ–ï¼Œ~1600 è¡Œå†…è”ä»£ç )
+- Telegram WebApp JS SDK (ä¸»é¢˜è‰²é€‚é…)
+- éƒ¨ç½²: Worker å†…è”æä¾› (æ— éœ€ CF Pages)
+- API: è°ƒç”¨ `/api/miniapp/*` ç®¡ç† API (ä¸Šä¼ /ä¸‹è½½/é¢„è§ˆå‡é€šè¿‡å†…éƒ¨ç«¯ç‚¹ï¼Œæ— éœ€ S3 å‡­æ®)
 
-### Mini App API 端点
+### Mini App API ç«¯ç‚¹
 
-| 方法 | 路径 | 说明 |
+| æ–¹æ³• | è·¯å¾„ | è¯´æ˜Ž |
 |------|------|------|
-| GET | `/api/miniapp/buckets` | 列出所有 Bucket |
-| POST | `/api/miniapp/bucket` | 创建 Bucket (body: `{name}`) |
-| GET | `/api/miniapp/objects?bucket=&prefix=&delimiter=&maxKeys=&startAfter=` | 列出文件 |
-| GET | `/api/miniapp/object?bucket=&key=` | 获取文件元数据 |
-| DELETE | `/api/miniapp/object?bucket=&key=` | 删除文件 |
-| GET | `/api/miniapp/search?bucket=&q=` | 搜索文件 (服务端 LIKE 查询) |
-| POST | `/api/miniapp/share` | 创建分享 (body: `{bucket, key, expiresIn?, password?, maxDownloads?}`) |
-| GET | `/api/miniapp/shares?bucket=` | 列出分享 |
-| DELETE | `/api/miniapp/share?token=` | 撤销分享 |
-| GET | `/api/miniapp/stats` | 全局统计 |
-| POST | `/api/miniapp/rename` | 重命名/移动文件 (body: `{bucket, oldKey, newKey}`) |
-| PUT | `/api/miniapp/upload?bucket=&key=` | 直接上传文件 (body 为文件内容，内部调用 PutObject) |
-| GET | `/api/miniapp/download?bucket=&key=` | 直接下载文件 (内部调用 GetObject，支持 `?auth=` 查询参数认证) |
-| POST | `/api/miniapp/presign` | 生成预签名 URL，仅用于"复制预签名链接"功能 (body: `{bucket, key, method?, expiresIn?}`) |
-| GET | `/api/miniapp/credentials` | 列出凭证 (secret_access_key 脱敏) |
-| POST | `/api/miniapp/credential` | 创建凭证 (body: `{buckets?, permission?}`) |
-| PATCH | `/api/miniapp/credential?accessKeyId=` | 更新凭证 (body: `{name?, buckets?, permission?, is_active?}`) |
-| DELETE | `/api/miniapp/credential?accessKeyId=` | 删除凭证 |
+| GET | `/api/miniapp/buckets` | åˆ—å‡ºæ‰€æœ‰ Bucket |
+| POST | `/api/miniapp/bucket` | åˆ›å»º Bucket (body: `{name}`) |
+| GET | `/api/miniapp/objects?bucket=&prefix=&delimiter=&maxKeys=&startAfter=` | åˆ—å‡ºæ–‡ä»¶ |
+| GET | `/api/miniapp/object?bucket=&key=` | èŽ·å–æ–‡ä»¶å…ƒæ•°æ® |
+| DELETE | `/api/miniapp/object?bucket=&key=` | åˆ é™¤æ–‡ä»¶ |
+| GET | `/api/miniapp/search?bucket=&q=` | æœç´¢æ–‡ä»¶ (æœåŠ¡ç«¯ LIKE æŸ¥è¯¢) |
+| POST | `/api/miniapp/share` | åˆ›å»ºåˆ†äº« (body: `{bucket, key, expiresIn?, password?, maxDownloads?}`) |
+| GET | `/api/miniapp/shares?bucket=` | åˆ—å‡ºåˆ†äº« |
+| DELETE | `/api/miniapp/share?token=` | æ’¤é”€åˆ†äº« |
+| GET | `/api/miniapp/stats` | å…¨å±€ç»Ÿè®¡ |
+| POST | `/api/miniapp/rename` | é‡å‘½å/ç§»åŠ¨æ–‡ä»¶ (body: `{bucket, oldKey, newKey}`) |
+| PUT | `/api/miniapp/upload?bucket=&key=` | ç›´æŽ¥ä¸Šä¼ æ–‡ä»¶ (body ä¸ºæ–‡ä»¶å†…å®¹ï¼Œå†…éƒ¨è°ƒç”¨ PutObject) |
+| GET | `/api/miniapp/download?bucket=&key=` | ç›´æŽ¥ä¸‹è½½æ–‡ä»¶ (å†…éƒ¨è°ƒç”¨ GetObjectï¼Œæ”¯æŒ `?auth=` æŸ¥è¯¢å‚æ•°è®¤è¯) |
+| POST | `/api/miniapp/presign` | ç”Ÿæˆé¢„ç­¾å URLï¼Œä»…ç”¨äºŽ"å¤åˆ¶é¢„ç­¾åé“¾æŽ¥"åŠŸèƒ½ (body: `{bucket, key, method?, expiresIn?}`) |
+| GET | `/api/miniapp/credentials` | åˆ—å‡ºå‡­è¯ (secret_access_key è„±æ•) |
+| POST | `/api/miniapp/credential` | åˆ›å»ºå‡­è¯ (body: `{buckets?, permission?}`) |
+| PATCH | `/api/miniapp/credential?accessKeyId=` | æ›´æ–°å‡­è¯ (body: `{name?, buckets?, permission?, is_active?}`) |
+| DELETE | `/api/miniapp/credential?accessKeyId=` | åˆ é™¤å‡­è¯ |
 
-所有端点需认证（Telegram WebApp initData）。认证方式:
-- `Authorization: Bearer <initData>` 请求头 (JS fetch 调用)
-- `?auth=<initData>` 查询参数 (浏览器直接访问的 URL，如 `img.src`、`window.open`)
+æ‰€æœ‰ç«¯ç‚¹éœ€è®¤è¯ï¼ˆTelegram WebApp initDataï¼‰ã€‚è®¤è¯æ–¹å¼:
+- `Authorization: Bearer <initData>` è¯·æ±‚å¤´ (JS fetch è°ƒç”¨)
+- `?auth=<initData>` æŸ¥è¯¢å‚æ•° (æµè§ˆå™¨ç›´æŽ¥è®¿é—®çš„ URLï¼Œå¦‚ `img.src`ã€`window.open`)
 
-### 核心功能
+### æ ¸å¿ƒåŠŸèƒ½
 
-| 功能 | 说明 |
+| åŠŸèƒ½ | è¯´æ˜Ž |
 |------|------|
-| Bucket 列表 | 显示所有 Bucket 及统计信息 |
-| 文件浏览 | 面包屑导航，delimiter 分组，分页加载 |
-| 拖拽上传 | 多文件拖拽，通过 `/api/miniapp/upload` 直接上传 |
-| 图片预览 | 缩略图内联显示 |
-| 批量操作 | 多选删除、多选分享（分享暂限逐个） |
-| 搜索 | 文件名模糊搜索 (服务端 D1 LIKE 查询) |
-| 排序 | 6 种排序模式（名称、大小、时间，各升降序） |
-| 分享管理 | 创建/查看/撤销分享链接，支持口令和有效期 |
-| 文件操作 | 重命名/移动 (CopyObject + Delete)，文件详情 |
-| TG 主题适配 | 自动跟随 Telegram 暗色/亮色模式 |
+| Bucket åˆ—è¡¨ | æ˜¾ç¤ºæ‰€æœ‰ Bucket åŠç»Ÿè®¡ä¿¡æ¯ |
+| æ–‡ä»¶æµè§ˆ | é¢åŒ…å±‘å¯¼èˆªï¼Œdelimiter åˆ†ç»„ï¼Œåˆ†é¡µåŠ è½½ |
+| æ‹–æ‹½ä¸Šä¼  | å¤šæ–‡ä»¶æ‹–æ‹½ï¼Œé€šè¿‡ `/api/miniapp/upload` ç›´æŽ¥ä¸Šä¼  |
+| å›¾ç‰‡é¢„è§ˆ | ç¼©ç•¥å›¾å†…è”æ˜¾ç¤º |
+| æ‰¹é‡æ“ä½œ | å¤šé€‰åˆ é™¤ã€å¤šé€‰åˆ†äº«ï¼ˆåˆ†äº«æš‚é™é€ä¸ªï¼‰ |
+| æœç´¢ | æ–‡ä»¶åæ¨¡ç³Šæœç´¢ (æœåŠ¡ç«¯ D1 LIKE æŸ¥è¯¢) |
+| æŽ’åº | 6 ç§æŽ’åºæ¨¡å¼ï¼ˆåç§°ã€å¤§å°ã€æ—¶é—´ï¼Œå„å‡é™åºï¼‰ |
+| åˆ†äº«ç®¡ç† | åˆ›å»º/æŸ¥çœ‹/æ’¤é”€åˆ†äº«é“¾æŽ¥ï¼Œæ”¯æŒå£ä»¤å’Œæœ‰æ•ˆæœŸ |
+| æ–‡ä»¶æ“ä½œ | é‡å‘½å/ç§»åŠ¨ (CopyObject + Delete)ï¼Œæ–‡ä»¶è¯¦æƒ… |
+| TG ä¸»é¢˜é€‚é… | è‡ªåŠ¨è·Ÿéš Telegram æš—è‰²/äº®è‰²æ¨¡å¼ |
 
-## 六、实现路线图
+## å…­ã€å®žçŽ°è·¯çº¿å›¾
 
-### Phase 1: S3 基础 API (MVP) [已实现]
+### Phase 1: S3 åŸºç¡€ API (MVP) [å·²å®žçŽ°]
 
-**目标**: rclone 能正常连接，完成基本增删查操作
+**ç›®æ ‡**: rclone èƒ½æ­£å¸¸è¿žæŽ¥ï¼Œå®ŒæˆåŸºæœ¬å¢žåˆ æŸ¥æ“ä½œ
 
 ```
-交付物:
-  - CF Worker 项目骨架
-  - Telegram initData 认证
+äº¤ä»˜ç‰©:
+  - CF Worker é¡¹ç›®éª¨æž¶
+  - Telegram initData è®¤è¯
   - PutObject / GetObject / HeadObject / DeleteObject
   - ListObjectsV2 (prefix + delimiter)
   - HeadBucket / ListBuckets
-  - D1 schema + 基础 CRUD
-  - TG Bot API 集成 (sendDocument / getFile)
-  - 速率限制 (内存令牌桶)
-  - CDN 缓存 (GetObject 响应)
+  - D1 schema + åŸºç¡€ CRUD
+  - TG Bot API é›†æˆ (sendDocument / getFile)
+  - é€ŸçŽ‡é™åˆ¶ (å†…å­˜ä»¤ç‰Œæ¡¶)
+  - CDN ç¼“å­˜ (GetObject å“åº”)
 
-验收标准:
-  - rclone lsd tg-s3: → 列出 buckets
-  - rclone copy file.txt tg-s3:bucket/ → 上传成功
-  - rclone cat tg-s3:bucket/file.txt → 下载成功
-  - rclone delete tg-s3:bucket/file.txt → 删除成功
-  - rclone ls tg-s3:bucket/ → 列出文件
+éªŒæ”¶æ ‡å‡†:
+  - rclone lsd stratum: â†’ åˆ—å‡º buckets
+  - rclone copy file.txt stratum:bucket/ â†’ ä¸Šä¼ æˆåŠŸ
+  - rclone cat stratum:bucket/file.txt â†’ ä¸‹è½½æˆåŠŸ
+  - rclone delete stratum:bucket/file.txt â†’ åˆ é™¤æˆåŠŸ
+  - rclone ls stratum:bucket/ â†’ åˆ—å‡ºæ–‡ä»¶
 
-估计工作量: ~2000 行 TypeScript
+ä¼°è®¡å·¥ä½œé‡: ~2000 è¡Œ TypeScript
 ```
 
-### Phase 2: 客户端兼容性 [已实现]
+### Phase 2: å®¢æˆ·ç«¯å…¼å®¹æ€§ [å·²å®žçŽ°]
 
-**目标**: aws cli 和 s3cmd 也能正常工作
+**ç›®æ ‡**: aws cli å’Œ s3cmd ä¹Ÿèƒ½æ­£å¸¸å·¥ä½œ
 
 ```
-交付物:
-  - AWS SigV4 认证
+äº¤ä»˜ç‰©:
+  - AWS SigV4 è®¤è¯
   - CopyObject
-  - DeleteObjects (批量删除)
+  - DeleteObjects (æ‰¹é‡åˆ é™¤)
   - CreateMultipartUpload / UploadPart / CompleteMultipartUpload
   - AbortMultipartUpload / ListParts
   - Legacy ListObjects (v1)
   - CreateBucket / DeleteBucket
 
-验收标准:
-  - aws s3 cp / ls / rm / sync 全部正常
-  - s3cmd get / put / ls / del 全部正常
-  - rclone sync 完整目录同步
+éªŒæ”¶æ ‡å‡†:
+  - aws s3 cp / ls / rm / sync å…¨éƒ¨æ­£å¸¸
+  - s3cmd get / put / ls / del å…¨éƒ¨æ­£å¸¸
+  - rclone sync å®Œæ•´ç›®å½•åŒæ­¥
 
-估计增量: ~1200 行
+ä¼°è®¡å¢žé‡: ~1200 è¡Œ
 ```
 
-### Phase 3: 文件分享 [已实现]
+### Phase 3: æ–‡ä»¶åˆ†äº« [å·²å®žçŽ°]
 
-**目标**: 生成带时效和口令的分享链接
-
-```
-交付物:
-  - 分享 Token 生成/验证
-  - 预签名 URL 生成/验证
-  - HTML 下载页面
-  - 口令保护
-  - 下载次数限制
-  - 分享管理 API
-
-验收标准:
-  - 生成分享链接，浏览器可访问
-  - 过期后无法访问
-  - 口令错误无法下载
-  - 超出下载次数限制后无法下载
-
-估计增量: ~800 行
-```
-
-### Phase 4: 图床 [已实现]
-
-**目标**: 图片直链访问，CDN 加速
+**ç›®æ ‡**: ç”Ÿæˆå¸¦æ—¶æ•ˆå’Œå£ä»¤çš„åˆ†äº«é“¾æŽ¥
 
 ```
-交付物:
-  - 图片 Content-Type 检测
-  - 直链访问（内联显示，非下载）
-  - CORS 头支持
-  - 长缓存策略 (immutable)
-  - 图片变体查询参数 (?w=400&fmt=webp) -- 需 VPS
+äº¤ä»˜ç‰©:
+  - åˆ†äº« Token ç”Ÿæˆ/éªŒè¯
+  - é¢„ç­¾å URL ç”Ÿæˆ/éªŒè¯
+  - HTML ä¸‹è½½é¡µé¢
+  - å£ä»¤ä¿æŠ¤
+  - ä¸‹è½½æ¬¡æ•°é™åˆ¶
+  - åˆ†äº«ç®¡ç† API
 
-验收标准:
-  - <img src="https://tg-s3.example.com/bucket/photo.jpg"> 正常显示
-  - Markdown 引用图片正常
-  - 缓存命中率 >90% (热图片)
+éªŒæ”¶æ ‡å‡†:
+  - ç”Ÿæˆåˆ†äº«é“¾æŽ¥ï¼Œæµè§ˆå™¨å¯è®¿é—®
+  - è¿‡æœŸåŽæ— æ³•è®¿é—®
+  - å£ä»¤é”™è¯¯æ— æ³•ä¸‹è½½
+  - è¶…å‡ºä¸‹è½½æ¬¡æ•°é™åˆ¶åŽæ— æ³•ä¸‹è½½
 
-估计增量: ~400 行
+ä¼°è®¡å¢žé‡: ~800 è¡Œ
 ```
 
-### Phase 5: VPS + 大文件 [部分实现]
+### Phase 4: å›¾åºŠ [å·²å®žçŽ°]
 
-**目标**: 突破 20MB 限制，支持 Range 请求
-
-```
-交付物:
-  - VPS 处理服务（Docker Compose）
-  - Local Bot API Server 集成
-  - 文件分块上传/下载
-  - Range 请求支持
-  - Worker <-> VPS 通信协议
-
-验收标准:
-  - 上传/下载 500MB 文件成功
-  - 视频文件浏览器内播放，可拖进度条
-  - 断点续传正常
-
-估计增量: ~1500 行 (Worker + VPS)
-```
-
-### Phase 6: 媒体处理
-
-**目标**: HEIC 转换、实况照片、视频转码
+**ç›®æ ‡**: å›¾ç‰‡ç›´é“¾è®¿é—®ï¼ŒCDN åŠ é€Ÿ
 
 ```
-交付物:
-  - sharp 图片处理管线
-  - ffmpeg 视频处理管线
-  - HEIC -> JPEG/WebP 自动转换
-  - 实况照片识别和展示
-  - 视频转码和封面生成
-  - 缩略图自动生成
-  - 衍生文件存储
+äº¤ä»˜ç‰©:
+  - å›¾ç‰‡ Content-Type æ£€æµ‹
+  - ç›´é“¾è®¿é—®ï¼ˆå†…è”æ˜¾ç¤ºï¼Œéžä¸‹è½½ï¼‰
+  - CORS å¤´æ”¯æŒ
+  - é•¿ç¼“å­˜ç­–ç•¥ (immutable)
+  - å›¾ç‰‡å˜ä½“æŸ¥è¯¢å‚æ•° (?w=400&fmt=webp) -- éœ€ VPS
 
-验收标准:
-  - 上传 HEIC 后自动生成 JPEG 版本
-  - 上传实况照片后 Web UI 可以播放
-  - 上传视频后自动转码 + 封面
+éªŒæ”¶æ ‡å‡†:
+  - <img src="https://stratum.example.com/bucket/photo.jpg"> æ­£å¸¸æ˜¾ç¤º
+  - Markdown å¼•ç”¨å›¾ç‰‡æ­£å¸¸
+  - ç¼“å­˜å‘½ä¸­çŽ‡ >90% (çƒ­å›¾ç‰‡)
 
-估计增量: ~1200 行 (VPS 服务)
+ä¼°è®¡å¢žé‡: ~400 è¡Œ
 ```
 
-### Phase 7: Web UI (Telegram Mini App) [已实现]
+### Phase 5: VPS + å¤§æ–‡ä»¶ [éƒ¨åˆ†å®žçŽ°]
 
-**目标**: 可用的文件管理器界面
-
-```
-交付物:
-  - Telegram Mini App (纯 HTML/CSS/JS, 内联在 Worker 中)
-  - 文件浏览器 (面包屑导航、delimiter 分组、分页)
-  - 拖拽上传 (/api/miniapp/upload 直接端点, 多文件并发)
-  - 图片缩略图预览
-  - 分享管理 (创建/查看/撤销, 支持口令和有效期)
-  - 文件操作 (重命名/移动/删除/详情)
-  - 6 种排序模式、文件名搜索
-  - TG 主题色适配 (暗色/亮色模式)
-  - 空状态引导、上传预检 (>20MB 提示)、加载骨架屏
-
-验收标准:
-  - 在 Telegram 内完整管理文件
-  - 移动端体验良好
-  - 无需独立域名或 CF Pages
-
-估计工作量: ~1600 行内联代码
-```
-
-### Phase 8: Telegram Bot [已实现]
-
-**目标**: 通过 TG Bot 管理文件
+**ç›®æ ‡**: çªç ´ 20MB é™åˆ¶ï¼Œæ”¯æŒ Range è¯·æ±‚
 
 ```
-交付物:
-  - 13 个 Bot 命令 (12 个注册到 setMyCommands + /start 内建)
-  - 文件上传 (直接发文件给 Bot, 支持 document/photo/video/audio)
-  - 文件列表/搜索/删除 (含 Inline Keyboard 确认)
-  - 分享链接创建/列表/撤销
-  - Callback Query 处理 (删除确认、快捷分享、快捷详情)
-  - setMyCommands 自动注册 (按语言注册命令描述)
-  - Bot 多语言支持 (EN/ZH/JA/FR, 基于用户 Telegram 语言自动检测)
+äº¤ä»˜ç‰©:
+  - VPS å¤„ç†æœåŠ¡ï¼ˆDocker Composeï¼‰
+  - Local Bot API Server é›†æˆ
+  - æ–‡ä»¶åˆ†å—ä¸Šä¼ /ä¸‹è½½
+  - Range è¯·æ±‚æ”¯æŒ
+  - Worker <-> VPS é€šä¿¡åè®®
 
-估计增量: ~800 行
+éªŒæ”¶æ ‡å‡†:
+  - ä¸Šä¼ /ä¸‹è½½ 500MB æ–‡ä»¶æˆåŠŸ
+  - è§†é¢‘æ–‡ä»¶æµè§ˆå™¨å†…æ’­æ”¾ï¼Œå¯æ‹–è¿›åº¦æ¡
+  - æ–­ç‚¹ç»­ä¼ æ­£å¸¸
+
+ä¼°è®¡å¢žé‡: ~1500 è¡Œ (Worker + VPS)
 ```
 
-## 七、总工作量估算
+### Phase 6: åª’ä½“å¤„ç†
 
-| Phase | 内容 | 代码量 | 累计 |
+**ç›®æ ‡**: HEIC è½¬æ¢ã€å®žå†µç…§ç‰‡ã€è§†é¢‘è½¬ç 
+
+```
+äº¤ä»˜ç‰©:
+  - sharp å›¾ç‰‡å¤„ç†ç®¡çº¿
+  - ffmpeg è§†é¢‘å¤„ç†ç®¡çº¿
+  - HEIC -> JPEG/WebP è‡ªåŠ¨è½¬æ¢
+  - å®žå†µç…§ç‰‡è¯†åˆ«å’Œå±•ç¤º
+  - è§†é¢‘è½¬ç å’Œå°é¢ç”Ÿæˆ
+  - ç¼©ç•¥å›¾è‡ªåŠ¨ç”Ÿæˆ
+  - è¡ç”Ÿæ–‡ä»¶å­˜å‚¨
+
+éªŒæ”¶æ ‡å‡†:
+  - ä¸Šä¼  HEIC åŽè‡ªåŠ¨ç”Ÿæˆ JPEG ç‰ˆæœ¬
+  - ä¸Šä¼ å®žå†µç…§ç‰‡åŽ Web UI å¯ä»¥æ’­æ”¾
+  - ä¸Šä¼ è§†é¢‘åŽè‡ªåŠ¨è½¬ç  + å°é¢
+
+ä¼°è®¡å¢žé‡: ~1200 è¡Œ (VPS æœåŠ¡)
+```
+
+### Phase 7: Web UI (Telegram Mini App) [å·²å®žçŽ°]
+
+**ç›®æ ‡**: å¯ç”¨çš„æ–‡ä»¶ç®¡ç†å™¨ç•Œé¢
+
+```
+äº¤ä»˜ç‰©:
+  - Telegram Mini App (çº¯ HTML/CSS/JS, å†…è”åœ¨ Worker ä¸­)
+  - æ–‡ä»¶æµè§ˆå™¨ (é¢åŒ…å±‘å¯¼èˆªã€delimiter åˆ†ç»„ã€åˆ†é¡µ)
+  - æ‹–æ‹½ä¸Šä¼  (/api/miniapp/upload ç›´æŽ¥ç«¯ç‚¹, å¤šæ–‡ä»¶å¹¶å‘)
+  - å›¾ç‰‡ç¼©ç•¥å›¾é¢„è§ˆ
+  - åˆ†äº«ç®¡ç† (åˆ›å»º/æŸ¥çœ‹/æ’¤é”€, æ”¯æŒå£ä»¤å’Œæœ‰æ•ˆæœŸ)
+  - æ–‡ä»¶æ“ä½œ (é‡å‘½å/ç§»åŠ¨/åˆ é™¤/è¯¦æƒ…)
+  - 6 ç§æŽ’åºæ¨¡å¼ã€æ–‡ä»¶åæœç´¢
+  - TG ä¸»é¢˜è‰²é€‚é… (æš—è‰²/äº®è‰²æ¨¡å¼)
+  - ç©ºçŠ¶æ€å¼•å¯¼ã€ä¸Šä¼ é¢„æ£€ (>20MB æç¤º)ã€åŠ è½½éª¨æž¶å±
+
+éªŒæ”¶æ ‡å‡†:
+  - åœ¨ Telegram å†…å®Œæ•´ç®¡ç†æ–‡ä»¶
+  - ç§»åŠ¨ç«¯ä½“éªŒè‰¯å¥½
+  - æ— éœ€ç‹¬ç«‹åŸŸåæˆ– CF Pages
+
+ä¼°è®¡å·¥ä½œé‡: ~1600 è¡Œå†…è”ä»£ç 
+```
+
+### Phase 8: Telegram Bot [å·²å®žçŽ°]
+
+**ç›®æ ‡**: é€šè¿‡ TG Bot ç®¡ç†æ–‡ä»¶
+
+```
+äº¤ä»˜ç‰©:
+  - 13 ä¸ª Bot å‘½ä»¤ (12 ä¸ªæ³¨å†Œåˆ° setMyCommands + /start å†…å»º)
+  - æ–‡ä»¶ä¸Šä¼  (ç›´æŽ¥å‘æ–‡ä»¶ç»™ Bot, æ”¯æŒ document/photo/video/audio)
+  - æ–‡ä»¶åˆ—è¡¨/æœç´¢/åˆ é™¤ (å« Inline Keyboard ç¡®è®¤)
+  - åˆ†äº«é“¾æŽ¥åˆ›å»º/åˆ—è¡¨/æ’¤é”€
+  - Callback Query å¤„ç† (åˆ é™¤ç¡®è®¤ã€å¿«æ·åˆ†äº«ã€å¿«æ·è¯¦æƒ…)
+  - setMyCommands è‡ªåŠ¨æ³¨å†Œ (æŒ‰è¯­è¨€æ³¨å†Œå‘½ä»¤æè¿°)
+  - Bot å¤šè¯­è¨€æ”¯æŒ (EN/ZH/JA/FR, åŸºäºŽç”¨æˆ· Telegram è¯­è¨€è‡ªåŠ¨æ£€æµ‹)
+
+ä¼°è®¡å¢žé‡: ~800 è¡Œ
+```
+
+## ä¸ƒã€æ€»å·¥ä½œé‡ä¼°ç®—
+
+| Phase | å†…å®¹ | ä»£ç é‡ | ç´¯è®¡ |
 |-------|------|--------|------|
-| 1 | S3 基础 API | ~2000 行 | 2000 |
-| 2 | 客户端兼容 | ~1200 行 | 3200 |
-| 3 | 文件分享 | ~800 行 | 4000 |
-| 4 | 图床 | ~400 行 | 4400 |
-| 5 | VPS + 大文件 | ~500 行 | 4900 |
-| 6 | 媒体处理 | ~200 行 | 5100 |
-| 7 | Web UI | ~1600 行 | 6700 |
-| 8 | TG Bot | ~800 行 | 7500 |
+| 1 | S3 åŸºç¡€ API | ~2000 è¡Œ | 2000 |
+| 2 | å®¢æˆ·ç«¯å…¼å®¹ | ~1200 è¡Œ | 3200 |
+| 3 | æ–‡ä»¶åˆ†äº« | ~800 è¡Œ | 4000 |
+| 4 | å›¾åºŠ | ~400 è¡Œ | 4400 |
+| 5 | VPS + å¤§æ–‡ä»¶ | ~500 è¡Œ | 4900 |
+| 6 | åª’ä½“å¤„ç† | ~200 è¡Œ | 5100 |
+| 7 | Web UI | ~1600 è¡Œ | 6700 |
+| 8 | TG Bot | ~800 è¡Œ | 7500 |
 
-**实际约 9,600 行代码**（TypeScript + 内联 HTML/CSS/JS + SQL）。
+**å®žé™…çº¦ 9,600 è¡Œä»£ç **ï¼ˆTypeScript + å†…è” HTML/CSS/JS + SQLï¼‰ã€‚
 
-> 注: Phase 5-6 中 VPS 端服务代码（Docker/Node.js）为独立仓库，此处仅统计 Worker 侧代码。
+> æ³¨: Phase 5-6 ä¸­ VPS ç«¯æœåŠ¡ä»£ç ï¼ˆDocker/Node.jsï¼‰ä¸ºç‹¬ç«‹ä»“åº“ï¼Œæ­¤å¤„ä»…ç»Ÿè®¡ Worker ä¾§ä»£ç ã€‚
 
-## 八、环境变量与 Secrets
+## å…«ã€çŽ¯å¢ƒå˜é‡ä¸Ž Secrets
 
-**Worker 侧 (CF Worker Secrets / Vars)**
+**Worker ä¾§ (CF Worker Secrets / Vars)**
 
-| 变量 | 用途 | 存储方式 |
+| å˜é‡ | ç”¨é€” | å­˜å‚¨æ–¹å¼ |
 |------|------|---------|
 | TG_BOT_TOKEN | Telegram Bot Token | Secret |
-| S3_REGION | S3 区域标识 (默认 "us-east-1") | Var (wrangler.toml) |
-| VPS_URL | VPS 服务地址 (可选) | Secret |
-| VPS_SECRET | Worker 调用 VPS 的认证密钥 (可选) | Secret |
-| DEFAULT_CHAT_ID | 默认 TG 频道/群组 ID | Secret |
-| WORKER_URL | Worker 公开 URL, Cron CDN 缓存清理用 (可选) | Var |
+| S3_REGION | S3 åŒºåŸŸæ ‡è¯† (é»˜è®¤ "us-east-1") | Var (wrangler.toml) |
+| VPS_URL | VPS æœåŠ¡åœ°å€ (å¯é€‰) | Secret |
+| VPS_SECRET | Worker è°ƒç”¨ VPS çš„è®¤è¯å¯†é’¥ (å¯é€‰) | Secret |
+| DEFAULT_CHAT_ID | é»˜è®¤ TG é¢‘é“/ç¾¤ç»„ ID | Secret |
+| WORKER_URL | Worker å…¬å¼€ URL, Cron CDN ç¼“å­˜æ¸…ç†ç”¨ (å¯é€‰) | Var |
 
-**VPS 侧 (.env)**
+**VPS ä¾§ (.env)**
 
-| 变量 | 用途 |
+| å˜é‡ | ç”¨é€” |
 |------|------|
-| TG_BOT_TOKEN | Telegram Bot Token (与 Worker 相同) |
-| TG_API_ID | Telegram API ID (Local Bot API Server 需要) |
-| TG_API_HASH | Telegram API Hash (Local Bot API Server 需要) |
-| VPS_SECRET | Worker 调用认证密钥 (与 Worker 相同) |
+| TG_BOT_TOKEN | Telegram Bot Token (ä¸Ž Worker ç›¸åŒ) |
+| TG_API_ID | Telegram API ID (Local Bot API Server éœ€è¦) |
+| TG_API_HASH | Telegram API Hash (Local Bot API Server éœ€è¦) |
+| VPS_SECRET | Worker è°ƒç”¨è®¤è¯å¯†é’¥ (ä¸Ž Worker ç›¸åŒ) |
 
-Binding 资源：
+Binding èµ„æºï¼š
 
-| Binding | 类型 | 名称 | 用途 |
+| Binding | ç±»åž‹ | åç§° | ç”¨é€” |
 |---------|------|------|------|
-| DB | D1 Database | tg-s3-db | 元数据存储 |
-| CACHE | R2 Bucket | tg-s3-cache | 持久文件缓存 (64KB-20MB) |
+| DB | D1 Database | stratum-db | å…ƒæ•°æ®å­˜å‚¨ |
+| CACHE | R2 Bucket | stratum-cache | æŒä¹…æ–‡ä»¶ç¼“å­˜ (64KB-20MB) |
 
-**R2 Bucket 配置**
+**R2 Bucket é…ç½®**
 
-在 Cloudflare Dashboard 的 R2 > tg-s3-cache > Settings 中配置 Object Lifecycle Rule:
+åœ¨ Cloudflare Dashboard çš„ R2 > stratum-cache > Settings ä¸­é…ç½® Object Lifecycle Rule:
 - Rule name: `auto-expire-cache`
-- Prefix: (留空，适用于全部对象)
-- Action: Delete objects after **90 天**
-- 作用: 作为 cron 缓存清理的兜底安全网，防止孤儿缓存永久占用空间
+- Prefix: (ç•™ç©ºï¼Œé€‚ç”¨äºŽå…¨éƒ¨å¯¹è±¡)
+- Action: Delete objects after **90 å¤©**
+- ä½œç”¨: ä½œä¸º cron ç¼“å­˜æ¸…ç†çš„å…œåº•å®‰å…¨ç½‘ï¼Œé˜²æ­¢å­¤å„¿ç¼“å­˜æ°¸ä¹…å ç”¨ç©ºé—´

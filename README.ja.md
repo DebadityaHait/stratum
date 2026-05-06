@@ -1,164 +1,164 @@
-# TG-S3
+# Stratum
 
-**Telegramベースの S3 互換ストレージ -- Cloudflare Workers で動作**
+**Telegramãƒ™ãƒ¼ã‚¹ã® S3 äº’æ›ã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸ -- Cloudflare Workers ã§å‹•ä½œ**
 
-[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md) | [Français](README.fr.md)
+[English](README.md) | [ä¸­æ–‡](README.zh.md) | [æ—¥æœ¬èªž](README.ja.md) | [FranÃ§ais](README.fr.md)
 
 ---
 
-TG-S3 は Telegram を S3 互換オブジェクトストレージバックエンドに変換します。ファイルは Telegram メッセージとして保存され、メタデータは Cloudflare D1 に格納、システム全体が Cloudflare Workers 上でランタイム依存なしに動作します。
+Stratum ã¯ Telegram ã‚’ S3 äº’æ›ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸ãƒãƒƒã‚¯ã‚¨ãƒ³ãƒ‰ã«å¤‰æ›ã—ã¾ã™ã€‚ãƒ•ã‚¡ã‚¤ãƒ«ã¯ Telegram ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã¨ã—ã¦ä¿å­˜ã•ã‚Œã€ãƒ¡ã‚¿ãƒ‡ãƒ¼ã‚¿ã¯ Cloudflare D1 ã«æ ¼ç´ã€ã‚·ã‚¹ãƒ†ãƒ å…¨ä½“ãŒ Cloudflare Workers ä¸Šã§ãƒ©ãƒ³ã‚¿ã‚¤ãƒ ä¾å­˜ãªã—ã«å‹•ä½œã—ã¾ã™ã€‚
 
-## 機能
+## æ©Ÿèƒ½
 
-- **S3 互換 API** -- マルチパートアップロード、署名付き URL、条件付きリクエストを含む 27 のオペレーションをサポート
-- **無制限の無料ストレージ** -- Telegram がストレージレイヤーを無料で提供
-- **三層キャッシュ** -- CF CDN (L1) -> R2 (L2) -> Telegram (L3) による高速読み取り
-- **Telegram Bot** -- Telegram から直接ファイル、バケット、共有を管理
-- **Mini App** -- ファイルブラウザ、アップロード、共有管理を備えた Telegram 内蔵 Web UI
-- **ファイル共有** -- パスワード保護、有効期限、ダウンロード制限、インラインプレビュー付き共有リンク
-- **サーバーサイド暗号化** -- SSE-C（顧客提供キー）と SSE-S3（サーバー管理キー）に対応、AES-256-GCM 暗号化
-- **大容量ファイル対応** -- オプションの VPS プロキシと Local Bot API により最大 2GB
-- **メディア処理** -- VPS 経由で画像変換 (HEIC/WebP)、動画トランスコード、Live Photo 処理
-- **マルチ認証情報** -- D1 ベースの認証情報管理、バケット別・操作別の権限設定
-- **Cloudflare Tunnel** -- パブリックポートを公開せずに VPS へ安全に接続
-- **多言語対応** -- Mini App は英語、中国語、日本語、フランス語をサポート
-- **ゼロコストで開始** -- コア機能は Cloudflare 無料プランのみで動作
+- **S3 äº’æ› API** -- ãƒžãƒ«ãƒãƒ‘ãƒ¼ãƒˆã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ã€ç½²åä»˜ã URLã€æ¡ä»¶ä»˜ããƒªã‚¯ã‚¨ã‚¹ãƒˆã‚’å«ã‚€ 27 ã®ã‚ªãƒšãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ã‚’ã‚µãƒãƒ¼ãƒˆ
+- **ç„¡åˆ¶é™ã®ç„¡æ–™ã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸** -- Telegram ãŒã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’ç„¡æ–™ã§æä¾›
+- **ä¸‰å±¤ã‚­ãƒ£ãƒƒã‚·ãƒ¥** -- CF CDN (L1) -> R2 (L2) -> Telegram (L3) ã«ã‚ˆã‚‹é«˜é€Ÿèª­ã¿å–ã‚Š
+- **Telegram Bot** -- Telegram ã‹ã‚‰ç›´æŽ¥ãƒ•ã‚¡ã‚¤ãƒ«ã€ãƒã‚±ãƒƒãƒˆã€å…±æœ‰ã‚’ç®¡ç†
+- **Mini App** -- ãƒ•ã‚¡ã‚¤ãƒ«ãƒ–ãƒ©ã‚¦ã‚¶ã€ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ã€å…±æœ‰ç®¡ç†ã‚’å‚™ãˆãŸ Telegram å†…è”µ Web UI
+- **ãƒ•ã‚¡ã‚¤ãƒ«å…±æœ‰** -- ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰ä¿è­·ã€æœ‰åŠ¹æœŸé™ã€ãƒ€ã‚¦ãƒ³ãƒ­ãƒ¼ãƒ‰åˆ¶é™ã€ã‚¤ãƒ³ãƒ©ã‚¤ãƒ³ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä»˜ãå…±æœ‰ãƒªãƒ³ã‚¯
+- **ã‚µãƒ¼ãƒãƒ¼ã‚µã‚¤ãƒ‰æš—å·åŒ–** -- SSE-Cï¼ˆé¡§å®¢æä¾›ã‚­ãƒ¼ï¼‰ã¨ SSE-S3ï¼ˆã‚µãƒ¼ãƒãƒ¼ç®¡ç†ã‚­ãƒ¼ï¼‰ã«å¯¾å¿œã€AES-256-GCM æš—å·åŒ–
+- **å¤§å®¹é‡ãƒ•ã‚¡ã‚¤ãƒ«å¯¾å¿œ** -- ã‚ªãƒ—ã‚·ãƒ§ãƒ³ã® VPS ãƒ—ãƒ­ã‚­ã‚·ã¨ Local Bot API ã«ã‚ˆã‚Šæœ€å¤§ 2GB
+- **ãƒ¡ãƒ‡ã‚£ã‚¢å‡¦ç†** -- VPS çµŒç”±ã§ç”»åƒå¤‰æ› (HEIC/WebP)ã€å‹•ç”»ãƒˆãƒ©ãƒ³ã‚¹ã‚³ãƒ¼ãƒ‰ã€Live Photo å‡¦ç†
+- **ãƒžãƒ«ãƒèªè¨¼æƒ…å ±** -- D1 ãƒ™ãƒ¼ã‚¹ã®èªè¨¼æƒ…å ±ç®¡ç†ã€ãƒã‚±ãƒƒãƒˆåˆ¥ãƒ»æ“ä½œåˆ¥ã®æ¨©é™è¨­å®š
+- **Cloudflare Tunnel** -- ãƒ‘ãƒ–ãƒªãƒƒã‚¯ãƒãƒ¼ãƒˆã‚’å…¬é–‹ã›ãšã« VPS ã¸å®‰å…¨ã«æŽ¥ç¶š
+- **å¤šè¨€èªžå¯¾å¿œ** -- Mini App ã¯è‹±èªžã€ä¸­å›½èªžã€æ—¥æœ¬èªžã€ãƒ•ãƒ©ãƒ³ã‚¹èªžã‚’ã‚µãƒãƒ¼ãƒˆ
+- **ã‚¼ãƒ­ã‚³ã‚¹ãƒˆã§é–‹å§‹** -- ã‚³ã‚¢æ©Ÿèƒ½ã¯ Cloudflare ç„¡æ–™ãƒ—ãƒ©ãƒ³ã®ã¿ã§å‹•ä½œ
 
-## アーキテクチャ
+## ã‚¢ãƒ¼ã‚­ãƒ†ã‚¯ãƒãƒ£
 
 ```
-S3 クライアント ──┐
-                  │
-Telegram Bot ─────┤
-                  ├──▶ Cloudflare Worker ──▶ D1 (メタデータ)
-Mini App ─────────┤         │                R2 (キャッシュ)
-                  │         │
-共有リンク ───────┘         ▼
-                       Telegram API ◀──▶ VPS プロキシ (オプション、>20MB)
+S3 ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ â”€â”€â”
+                  â”‚
+Telegram Bot â”€â”€â”€â”€â”€â”¤
+                  â”œâ”€â”€â–¶ Cloudflare Worker â”€â”€â–¶ D1 (ãƒ¡ã‚¿ãƒ‡ãƒ¼ã‚¿)
+Mini App â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤         â”‚                R2 (ã‚­ãƒ£ãƒƒã‚·ãƒ¥)
+                  â”‚         â”‚
+å…±æœ‰ãƒªãƒ³ã‚¯ â”€â”€â”€â”€â”€â”€â”€â”˜         â–¼
+                       Telegram API â—€â”€â”€â–¶ VPS ãƒ—ãƒ­ã‚­ã‚· (ã‚ªãƒ—ã‚·ãƒ§ãƒ³ã€>20MB)
 ```
 
-**コンポーネント：**
+**ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆï¼š**
 
-| コンポーネント | 役割 | コスト |
+| ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆ | å½¹å‰² | ã‚³ã‚¹ãƒˆ |
 |----------------|------|--------|
-| CF Worker | S3 API ゲートウェイ、Bot Webhook、Mini App ホスト | 無料プラン |
-| CF D1 | メタデータストレージ（オブジェクト、バケット、共有） | 無料プラン |
-| CF R2 | 永続キャッシュ、<=20MB のファイル | 無料プラン (10GB) |
-| Telegram | 永続ファイルストレージ（無制限） | 無料 |
-| VPS + Processor | 大容量ファイル (>20MB)、メディア処理 | 約 $4/月（オプション） |
+| CF Worker | S3 API ã‚²ãƒ¼ãƒˆã‚¦ã‚§ã‚¤ã€Bot Webhookã€Mini App ãƒ›ã‚¹ãƒˆ | ç„¡æ–™ãƒ—ãƒ©ãƒ³ |
+| CF D1 | ãƒ¡ã‚¿ãƒ‡ãƒ¼ã‚¿ã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸ï¼ˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã€ãƒã‚±ãƒƒãƒˆã€å…±æœ‰ï¼‰ | ç„¡æ–™ãƒ—ãƒ©ãƒ³ |
+| CF R2 | æ°¸ç¶šã‚­ãƒ£ãƒƒã‚·ãƒ¥ã€<=20MB ã®ãƒ•ã‚¡ã‚¤ãƒ« | ç„¡æ–™ãƒ—ãƒ©ãƒ³ (10GB) |
+| Telegram | æ°¸ç¶šãƒ•ã‚¡ã‚¤ãƒ«ã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸ï¼ˆç„¡åˆ¶é™ï¼‰ | ç„¡æ–™ |
+| VPS + Processor | å¤§å®¹é‡ãƒ•ã‚¡ã‚¤ãƒ« (>20MB)ã€ãƒ¡ãƒ‡ã‚£ã‚¢å‡¦ç† | ç´„ $4/æœˆï¼ˆã‚ªãƒ—ã‚·ãƒ§ãƒ³ï¼‰ |
 
-## クイックスタート
+## ã‚¯ã‚¤ãƒƒã‚¯ã‚¹ã‚¿ãƒ¼ãƒˆ
 
-### 前提条件
+### å‰ææ¡ä»¶
 
 - Node.js 22+
-- [Telegram Bot](https://t.me/BotFather) とそのトークン
-- Telegram グループ/スーパーグループ（[@userinfobot](https://t.me/userinfobot) で Chat ID を取得）
-- [Cloudflare アカウント](https://dash.cloudflare.com)
+- [Telegram Bot](https://t.me/BotFather) ã¨ãã®ãƒˆãƒ¼ã‚¯ãƒ³
+- Telegram ã‚°ãƒ«ãƒ¼ãƒ—/ã‚¹ãƒ¼ãƒ‘ãƒ¼ã‚°ãƒ«ãƒ¼ãƒ—ï¼ˆ[@userinfobot](https://t.me/userinfobot) ã§ Chat ID ã‚’å–å¾—ï¼‰
+- [Cloudflare ã‚¢ã‚«ã‚¦ãƒ³ãƒˆ](https://dash.cloudflare.com)
 
-### 方法 1: Docker（推奨）
+### æ–¹æ³• 1: Dockerï¼ˆæŽ¨å¥¨ï¼‰
 
 ```bash
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
+git clone https://github.com/DebadityaHait/stratum.git
+cd stratum
 cp .env.example .env
-# .env を編集: TG_BOT_TOKEN、DEFAULT_CHAT_ID、CLOUDFLARE_API_TOKEN のみ必要
-# 推奨: TG_ADMIN_IDS を設定して Bot アクセスを制限（カンマ区切りのユーザー ID）
+# .env ã‚’ç·¨é›†: TG_BOT_TOKENã€DEFAULT_CHAT_IDã€CLOUDFLARE_API_TOKEN ã®ã¿å¿…è¦
+# æŽ¨å¥¨: TG_ADMIN_IDS ã‚’è¨­å®šã—ã¦ Bot ã‚¢ã‚¯ã‚»ã‚¹ã‚’åˆ¶é™ï¼ˆã‚«ãƒ³ãƒžåŒºåˆ‡ã‚Šã®ãƒ¦ãƒ¼ã‚¶ãƒ¼ IDï¼‰
 ./deploy.sh
 ```
 
-スクリプトが環境を自動検出し、イメージのビルド、Worker のデプロイ、トンネル設定（`CF_CUSTOM_DOMAIN` 設定時）、サービスの起動をすべて処理します。S3 認証情報は Telegram Mini App の Keys タブで必要に応じて作成できます。
+ã‚¹ã‚¯ãƒªãƒ—ãƒˆãŒç’°å¢ƒã‚’è‡ªå‹•æ¤œå‡ºã—ã€ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒ“ãƒ«ãƒ‰ã€Worker ã®ãƒ‡ãƒ—ãƒ­ã‚¤ã€ãƒˆãƒ³ãƒãƒ«è¨­å®šï¼ˆ`CF_CUSTOM_DOMAIN` è¨­å®šæ™‚ï¼‰ã€ã‚µãƒ¼ãƒ“ã‚¹ã®èµ·å‹•ã‚’ã™ã¹ã¦å‡¦ç†ã—ã¾ã™ã€‚S3 èªè¨¼æƒ…å ±ã¯ Telegram Mini App ã® Keys ã‚¿ãƒ–ã§å¿…è¦ã«å¿œã˜ã¦ä½œæˆã§ãã¾ã™ã€‚
 
-### 方法 2: 手動デプロイ（Docker なし）
+### æ–¹æ³• 2: æ‰‹å‹•ãƒ‡ãƒ—ãƒ­ã‚¤ï¼ˆDocker ãªã—ï¼‰
 
 ```bash
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
+git clone https://github.com/DebadityaHait/stratum.git
+cd stratum
 npm install
 cp .env.example .env
-# .env を編集: TG_BOT_TOKEN と DEFAULT_CHAT_ID のみ必要
+# .env ã‚’ç·¨é›†: TG_BOT_TOKEN ã¨ DEFAULT_CHAT_ID ã®ã¿å¿…è¦
 
-# デプロイ（環境を自動検出、すべてのシークレットを自動生成）
+# ãƒ‡ãƒ—ãƒ­ã‚¤ï¼ˆç’°å¢ƒã‚’è‡ªå‹•æ¤œå‡ºã€ã™ã¹ã¦ã®ã‚·ãƒ¼ã‚¯ãƒ¬ãƒƒãƒˆã‚’è‡ªå‹•ç”Ÿæˆï¼‰
 ./deploy.sh
 
-# （オプション）レガシー VPS SSH デプロイ
+# ï¼ˆã‚ªãƒ—ã‚·ãƒ§ãƒ³ï¼‰ãƒ¬ã‚¬ã‚·ãƒ¼ VPS SSH ãƒ‡ãƒ—ãƒ­ã‚¤
 ./deploy.sh --vps
 ```
 
-### 動作確認
+### å‹•ä½œç¢ºèª
 
-任意の S3 クライアントを Worker URL に向けます：
+ä»»æ„ã® S3 ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆã‚’ Worker URL ã«å‘ã‘ã¾ã™ï¼š
 
 ```bash
-# AWS CLI を使用
+# AWS CLI ã‚’ä½¿ç”¨
 aws configure set aws_access_key_id YOUR_KEY
 aws configure set aws_secret_access_key YOUR_SECRET
 aws --endpoint-url https://your-worker.workers.dev s3 ls
 
-# rclone を使用
-rclone config create tgs3 s3 \
+# rclone ã‚’ä½¿ç”¨
+rclone config create stratum s3 \
   provider=Other \
   access_key_id=YOUR_KEY \
   secret_access_key=YOUR_SECRET \
   endpoint=https://your-worker.workers.dev \
   acl=private
-rclone ls tgs3:default
+rclone ls stratum:default
 ```
 
-## S3 互換性
+## S3 äº’æ›æ€§
 
-オブジェクト CRUD、マルチパートアップロード、バケット管理、認証の 27 オペレーションをサポート。
+ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ CRUDã€ãƒžãƒ«ãƒãƒ‘ãƒ¼ãƒˆã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ã€ãƒã‚±ãƒƒãƒˆç®¡ç†ã€èªè¨¼ã® 27 ã‚ªãƒšãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ã‚’ã‚µãƒãƒ¼ãƒˆã€‚
 
-| カテゴリ | オペレーション |
+| ã‚«ãƒ†ã‚´ãƒª | ã‚ªãƒšãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ |
 |----------|---------------|
-| オブジェクト | GetObject, PutObject, HeadObject, DeleteObject, DeleteObjects, CopyObject |
-| タグ | GetObjectTagging, PutObjectTagging, DeleteObjectTagging |
-| 一覧 | ListObjectsV2, ListObjects (v1) |
-| マルチパート | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
-| バケット | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
-| ライフサイクル | GetBucketLifecycleConfiguration, PutBucketLifecycleConfiguration, DeleteBucketLifecycleConfiguration |
-| 認証 | AWS SigV4（マルチ認証情報）、署名付き URL、Bearer トークン、Telegram initData |
+| ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ | GetObject, PutObject, HeadObject, DeleteObject, DeleteObjects, CopyObject |
+| ã‚¿ã‚° | GetObjectTagging, PutObjectTagging, DeleteObjectTagging |
+| ä¸€è¦§ | ListObjectsV2, ListObjects (v1) |
+| ãƒžãƒ«ãƒãƒ‘ãƒ¼ãƒˆ | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
+| ãƒã‚±ãƒƒãƒˆ | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
+| ãƒ©ã‚¤ãƒ•ã‚µã‚¤ã‚¯ãƒ« | GetBucketLifecycleConfiguration, PutBucketLifecycleConfiguration, DeleteBucketLifecycleConfiguration |
+| èªè¨¼ | AWS SigV4ï¼ˆãƒžãƒ«ãƒèªè¨¼æƒ…å ±ï¼‰ã€ç½²åä»˜ã URLã€Bearer ãƒˆãƒ¼ã‚¯ãƒ³ã€Telegram initData |
 
-**非対応（設計上の判断）：** バージョニング、ACL、クロスリージョンレプリケーション。詳細は [docs/S3-COMPAT.md](docs/S3-COMPAT.md) を参照。
+**éžå¯¾å¿œï¼ˆè¨­è¨ˆä¸Šã®åˆ¤æ–­ï¼‰ï¼š** ãƒãƒ¼ã‚¸ãƒ§ãƒ‹ãƒ³ã‚°ã€ACLã€ã‚¯ãƒ­ã‚¹ãƒªãƒ¼ã‚¸ãƒ§ãƒ³ãƒ¬ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã€‚è©³ç´°ã¯ [docs/S3-COMPAT.md](docs/S3-COMPAT.md) ã‚’å‚ç…§ã€‚
 
-## Telegram Bot コマンド
+## Telegram Bot ã‚³ãƒžãƒ³ãƒ‰
 
-| コマンド | 説明 |
+| ã‚³ãƒžãƒ³ãƒ‰ | èª¬æ˜Ž |
 |----------|------|
-| `/start` | ウェルカムメッセージ |
-| `/help` | コマンドリファレンス |
-| `/buckets` | 全バケット一覧 |
-| `/ls <bucket> [prefix]` | オブジェクト一覧 |
-| `/info <bucket> <key>` | オブジェクト詳細 |
-| `/search <bucket> <query>` | オブジェクト検索 |
-| `/share <bucket> <key>` | 共有リンク作成 |
-| `/shares` | アクティブな共有一覧 |
-| `/revoke <token>` | 共有を取り消し |
-| `/delete <bucket> <key>` | オブジェクト削除（確認あり） |
-| `/stats` | ストレージ統計 |
-| `/setbucket <name>` | デフォルトバケット設定 |
-| `/miniapp` | Mini App を開く |
+| `/start` | ã‚¦ã‚§ãƒ«ã‚«ãƒ ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ |
+| `/help` | ã‚³ãƒžãƒ³ãƒ‰ãƒªãƒ•ã‚¡ãƒ¬ãƒ³ã‚¹ |
+| `/buckets` | å…¨ãƒã‚±ãƒƒãƒˆä¸€è¦§ |
+| `/ls <bucket> [prefix]` | ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä¸€è¦§ |
+| `/info <bucket> <key>` | ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆè©³ç´° |
+| `/search <bucket> <query>` | ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ¤œç´¢ |
+| `/share <bucket> <key>` | å…±æœ‰ãƒªãƒ³ã‚¯ä½œæˆ |
+| `/shares` | ã‚¢ã‚¯ãƒ†ã‚£ãƒ–ãªå…±æœ‰ä¸€è¦§ |
+| `/revoke <token>` | å…±æœ‰ã‚’å–ã‚Šæ¶ˆã— |
+| `/delete <bucket> <key>` | ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå‰Šé™¤ï¼ˆç¢ºèªã‚ã‚Šï¼‰ |
+| `/stats` | ã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸çµ±è¨ˆ |
+| `/setbucket <name>` | ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆãƒã‚±ãƒƒãƒˆè¨­å®š |
+| `/miniapp` | Mini App ã‚’é–‹ã |
 
-Bot にファイルを送信するとデフォルトバケットにアップロードされます。
+Bot ã«ãƒ•ã‚¡ã‚¤ãƒ«ã‚’é€ä¿¡ã™ã‚‹ã¨ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆãƒã‚±ãƒƒãƒˆã«ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ã•ã‚Œã¾ã™ã€‚
 
-## ドキュメント
+## ãƒ‰ã‚­ãƒ¥ãƒ¡ãƒ³ãƒˆ
 
-- [デプロイガイド](docs/deployment.ja.md)
-- [設定リファレンス](docs/configuration.ja.md)
-- [Bot コマンド](docs/bot-commands.ja.md)
-- [S3 互換性](docs/S3-COMPAT.md)
-- [アーキテクチャ設計](docs/design/00-overview.md)
+- [ãƒ‡ãƒ—ãƒ­ã‚¤ã‚¬ã‚¤ãƒ‰](docs/deployment.ja.md)
+- [è¨­å®šãƒªãƒ•ã‚¡ãƒ¬ãƒ³ã‚¹](docs/configuration.ja.md)
+- [Bot ã‚³ãƒžãƒ³ãƒ‰](docs/bot-commands.ja.md)
+- [S3 äº’æ›æ€§](docs/S3-COMPAT.md)
+- [ã‚¢ãƒ¼ã‚­ãƒ†ã‚¯ãƒãƒ£è¨­è¨ˆ](docs/design/00-overview.md)
 
-## 技術スタック
+## æŠ€è¡“ã‚¹ã‚¿ãƒƒã‚¯
 
-- **ランタイム：** Cloudflare Workers（ランタイム依存なし）
-- **データベース：** Cloudflare D1 (SQLite)
-- **キャッシュ：** Cloudflare R2 + CF Cache API
-- **認証：** AWS SigV4、署名付き URL、Bearer トークン
-- **言語：** TypeScript（strict モード）
-- **メディア処理：** Sharp + FFmpeg（VPS のみ）
-- **ビルド：** wrangler v3
+- **ãƒ©ãƒ³ã‚¿ã‚¤ãƒ ï¼š** Cloudflare Workersï¼ˆãƒ©ãƒ³ã‚¿ã‚¤ãƒ ä¾å­˜ãªã—ï¼‰
+- **ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ï¼š** Cloudflare D1 (SQLite)
+- **ã‚­ãƒ£ãƒƒã‚·ãƒ¥ï¼š** Cloudflare R2 + CF Cache API
+- **èªè¨¼ï¼š** AWS SigV4ã€ç½²åä»˜ã URLã€Bearer ãƒˆãƒ¼ã‚¯ãƒ³
+- **è¨€èªžï¼š** TypeScriptï¼ˆstrict ãƒ¢ãƒ¼ãƒ‰ï¼‰
+- **ãƒ¡ãƒ‡ã‚£ã‚¢å‡¦ç†ï¼š** Sharp + FFmpegï¼ˆVPS ã®ã¿ï¼‰
+- **ãƒ“ãƒ«ãƒ‰ï¼š** wrangler v3
 
-## ライセンス
+## ãƒ©ã‚¤ã‚»ãƒ³ã‚¹
 
 MIT

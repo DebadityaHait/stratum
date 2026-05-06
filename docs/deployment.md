@@ -1,10 +1,10 @@
 # Deployment Guide
 
-[English](deployment.md) | [中文](deployment.zh.md) | [日本語](deployment.ja.md) | [Français](deployment.fr.md)
+[English](deployment.md) | [ä¸­æ–‡](deployment.zh.md) | [æ—¥æœ¬èªž](deployment.ja.md) | [FranÃ§ais](deployment.fr.md)
 
 ## Deployment Tiers
 
-TG-S3 supports three deployment tiers:
+Stratum supports three deployment tiers:
 
 | Tier | Components | Cost | Capabilities |
 |------|-----------|------|-------------|
@@ -39,8 +39,8 @@ Best for VPS deployment. One command handles everything.
 
 ```bash
 # Clone and configure
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
+git clone https://github.com/DebadityaHait/stratum.git
+cd stratum
 cp .env.example .env
 ```
 
@@ -83,7 +83,7 @@ Cloudflare Tunnel creates a secure connection between the processor and CF Worke
 **Manual setup** (without custom domain):
 
 1. Go to CF Dashboard > Zero Trust > Networks > Tunnels
-2. Create a tunnel named `tg-s3`
+2. Create a tunnel named `Stratum`
 3. Add a public hostname pointing to `http://processor:3000`
 4. Copy the tunnel token to `.env`:
 
@@ -133,7 +133,7 @@ For deploying the processor to a remote VPS over SSH, add VPS settings to `.env`
 
 ```bash
 VPS_SSH=user@your-vps-ip
-VPS_DEPLOY_DIR=/opt/tg-s3
+VPS_DEPLOY_DIR=/opt/stratum
 VPS_PORT=3000
 VPS_URL=https://vps.example.com:3000
 # VPS_SECRET is auto-generated if not set
@@ -166,13 +166,13 @@ aws --endpoint-url https://your-worker.workers.dev s3 mb s3://test
 aws --endpoint-url https://your-worker.workers.dev s3 cp file.txt s3://test/
 
 # rclone
-rclone config create tgs3 s3 \
+rclone config create stratum s3 \
   provider=Other \
   access_key_id=YOUR_KEY \
   secret_access_key=YOUR_SECRET \
   endpoint=https://your-worker.workers.dev \
   acl=private
-rclone ls tgs3:default
+rclone ls stratum:default
 ```
 
 ### Verify Bot

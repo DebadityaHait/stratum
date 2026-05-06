@@ -1,65 +1,65 @@
-# TG-S3: Telegram-backed S3-Compatible Storage
+# Stratum: Telegram-backed S3-Compatible Storage
 
-## 项目名称
+## é¡¹ç›®åç§°
 
-**TG-S3** (暂定，可改)
+**Stratum** (æš‚å®šï¼Œå¯æ”¹)
 
-## 项目定位
+## é¡¹ç›®å®šä½
 
-基于 Telegram 无限免费存储，提供 S3 兼容 API 的个人/小团队存储方案。附带图床、文件管理器、媒体处理、文件分享等功能。
+åŸºäºŽ Telegram æ— é™å…è´¹å­˜å‚¨ï¼Œæä¾› S3 å…¼å®¹ API çš„ä¸ªäºº/å°å›¢é˜Ÿå­˜å‚¨æ–¹æ¡ˆã€‚é™„å¸¦å›¾åºŠã€æ–‡ä»¶ç®¡ç†å™¨ã€åª’ä½“å¤„ç†ã€æ–‡ä»¶åˆ†äº«ç­‰åŠŸèƒ½ã€‚
 
-## 核心设计原则
+## æ ¸å¿ƒè®¾è®¡åŽŸåˆ™
 
-1. **Telegram 是唯一持久存储层** -- 所有文件数据存储在 TG 频道中，CF/VPS 只做计算和索引
-2. **S3 兼容优先** -- 能对接 rclone、aws cli、s3cmd 等标准工具
-3. **免费优先，付费增强** -- 核心功能在 CF 免费额度内运行，VPS 是可选增强
-4. **安全使用 TG** -- 内置速率限制，永远不触发 TG FloodWait
+1. **Telegram æ˜¯å”¯ä¸€æŒä¹…å­˜å‚¨å±‚** -- æ‰€æœ‰æ–‡ä»¶æ•°æ®å­˜å‚¨åœ¨ TG é¢‘é“ä¸­ï¼ŒCF/VPS åªåšè®¡ç®—å’Œç´¢å¼•
+2. **S3 å…¼å®¹ä¼˜å…ˆ** -- èƒ½å¯¹æŽ¥ rcloneã€aws cliã€s3cmd ç­‰æ ‡å‡†å·¥å…·
+3. **å…è´¹ä¼˜å…ˆï¼Œä»˜è´¹å¢žå¼º** -- æ ¸å¿ƒåŠŸèƒ½åœ¨ CF å…è´¹é¢åº¦å†…è¿è¡Œï¼ŒVPS æ˜¯å¯é€‰å¢žå¼º
+4. **å®‰å…¨ä½¿ç”¨ TG** -- å†…ç½®é€ŸçŽ‡é™åˆ¶ï¼Œæ°¸è¿œä¸è§¦å‘ TG FloodWait
 
-## 功能矩阵
+## åŠŸèƒ½çŸ©é˜µ
 
-### Tier 1: 核心存储（CF 免费）
+### Tier 1: æ ¸å¿ƒå­˜å‚¨ï¼ˆCF å…è´¹ï¼‰
 
-- S3 兼容 API（PutObject / GetObject / DeleteObject / ListObjectsV2 / HeadObject / CopyObject）
-- 元数据索引（D1）
-- CDN 缓存加速（CF CDN）
-- 认证（SigV4 签名 + TG WebApp initData）
-- 图床直链（支持 JPEG/PNG/WebP/GIF 直接访问）
+- S3 å…¼å®¹ APIï¼ˆPutObject / GetObject / DeleteObject / ListObjectsV2 / HeadObject / CopyObjectï¼‰
+- å…ƒæ•°æ®ç´¢å¼•ï¼ˆD1ï¼‰
+- CDN ç¼“å­˜åŠ é€Ÿï¼ˆCF CDNï¼‰
+- è®¤è¯ï¼ˆSigV4 ç­¾å + TG WebApp initDataï¼‰
+- å›¾åºŠç›´é“¾ï¼ˆæ”¯æŒ JPEG/PNG/WebP/GIF ç›´æŽ¥è®¿é—®ï¼‰
 
-### Tier 2: 增强功能（CF 免费）
+### Tier 2: å¢žå¼ºåŠŸèƒ½ï¼ˆCF å…è´¹ï¼‰
 
-- 文件公开分享（时效控制、口令保护、下载次数限制）
-- 预签名 URL（S3 标准格式）
-- Telegram Mini App 文件管理器（Worker 内联 HTML）
-- Telegram Bot 文件管理
-- Multipart Upload（小文件重组装）
-- 批量删除（DeleteObjects）
+- æ–‡ä»¶å…¬å¼€åˆ†äº«ï¼ˆæ—¶æ•ˆæŽ§åˆ¶ã€å£ä»¤ä¿æŠ¤ã€ä¸‹è½½æ¬¡æ•°é™åˆ¶ï¼‰
+- é¢„ç­¾å URLï¼ˆS3 æ ‡å‡†æ ¼å¼ï¼‰
+- Telegram Mini App æ–‡ä»¶ç®¡ç†å™¨ï¼ˆWorker å†…è” HTMLï¼‰
+- Telegram Bot æ–‡ä»¶ç®¡ç†
+- Multipart Uploadï¼ˆå°æ–‡ä»¶é‡ç»„è£…ï¼‰
+- æ‰¹é‡åˆ é™¤ï¼ˆDeleteObjectsï¼‰
 
-### Tier 3: 高级功能（需 VPS ~$4/月）
+### Tier 3: é«˜çº§åŠŸèƒ½ï¼ˆéœ€ VPS ~$4/æœˆï¼‰
 
-- 大文件支持（<=2GB，通过 Local Bot API Server）
-- HTTP Range 请求（视频拖进度条、断点续传）
-- 文件分块存储与透明重组装
-- HEIC/HEIF 格式转换
-- Apple 实况照片存储与展示
-- 视频转码（ffmpeg）
-- 缩略图自动生成
+- å¤§æ–‡ä»¶æ”¯æŒï¼ˆ<=2GBï¼Œé€šè¿‡ Local Bot API Serverï¼‰
+- HTTP Range è¯·æ±‚ï¼ˆè§†é¢‘æ‹–è¿›åº¦æ¡ã€æ–­ç‚¹ç»­ä¼ ï¼‰
+- æ–‡ä»¶åˆ†å—å­˜å‚¨ä¸Žé€æ˜Žé‡ç»„è£…
+- HEIC/HEIF æ ¼å¼è½¬æ¢
+- Apple å®žå†µç…§ç‰‡å­˜å‚¨ä¸Žå±•ç¤º
+- è§†é¢‘è½¬ç ï¼ˆffmpegï¼‰
+- ç¼©ç•¥å›¾è‡ªåŠ¨ç”Ÿæˆ
 
-## 非目标
+## éžç›®æ ‡
 
-- 不做多租户 SaaS 平台
-- 不做高并发/低延迟的生产级对象存储
-- 不做数据库或日志存储
-- 不替代 S3 Standard，定位是个人级"免费无限温存储"
+- ä¸åšå¤šç§Ÿæˆ· SaaS å¹³å°
+- ä¸åšé«˜å¹¶å‘/ä½Žå»¶è¿Ÿçš„ç”Ÿäº§çº§å¯¹è±¡å­˜å‚¨
+- ä¸åšæ•°æ®åº“æˆ–æ—¥å¿—å­˜å‚¨
+- ä¸æ›¿ä»£ S3 Standardï¼Œå®šä½æ˜¯ä¸ªäººçº§"å…è´¹æ— é™æ¸©å­˜å‚¨"
 
-## 技术栈
+## æŠ€æœ¯æ ˆ
 
-| 组件 | 技术 | 角色 |
+| ç»„ä»¶ | æŠ€æœ¯ | è§’è‰² |
 |------|------|------|
-| S3 API 网关 | Cloudflare Worker (TypeScript) | 接收 S3 请求，路由处理 |
-| 元数据存储 | Cloudflare D1 (SQLite) | 文件索引、分享 Token、Bucket 管理 |
-| CDN 缓存 | Cloudflare CDN | 热文件缓存，减少 TG 回源 |
-| 文件存储 | Telegram Bot API / Local Bot API | 实际文件持久化 |
-| Web UI | Telegram Mini App (内联 HTML) | 文件管理器 (Worker 内联提供) |
-| 媒体处理 | VPS (sharp + ffmpeg) | HEIC 转换、视频转码 |
-| 大文件支持 | VPS (Local Bot API Server) | 突破 20MB 下载限制 |
-| 热文件缓存 | Cloudflare R2（可选） | 高频访问文件缓存 |
+| S3 API ç½‘å…³ | Cloudflare Worker (TypeScript) | æŽ¥æ”¶ S3 è¯·æ±‚ï¼Œè·¯ç”±å¤„ç† |
+| å…ƒæ•°æ®å­˜å‚¨ | Cloudflare D1 (SQLite) | æ–‡ä»¶ç´¢å¼•ã€åˆ†äº« Tokenã€Bucket ç®¡ç† |
+| CDN ç¼“å­˜ | Cloudflare CDN | çƒ­æ–‡ä»¶ç¼“å­˜ï¼Œå‡å°‘ TG å›žæº |
+| æ–‡ä»¶å­˜å‚¨ | Telegram Bot API / Local Bot API | å®žé™…æ–‡ä»¶æŒä¹…åŒ– |
+| Web UI | Telegram Mini App (å†…è” HTML) | æ–‡ä»¶ç®¡ç†å™¨ (Worker å†…è”æä¾›) |
+| åª’ä½“å¤„ç† | VPS (sharp + ffmpeg) | HEIC è½¬æ¢ã€è§†é¢‘è½¬ç  |
+| å¤§æ–‡ä»¶æ”¯æŒ | VPS (Local Bot API Server) | çªç ´ 20MB ä¸‹è½½é™åˆ¶ |
+| çƒ­æ–‡ä»¶ç¼“å­˜ | Cloudflare R2ï¼ˆå¯é€‰ï¼‰ | é«˜é¢‘è®¿é—®æ–‡ä»¶ç¼“å­˜ |

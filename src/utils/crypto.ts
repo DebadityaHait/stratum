@@ -73,7 +73,7 @@ export async function deriveWebhookSecret(botToken: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw', encoder.encode(botToken), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode('tg-s3-webhook'));
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode('stratum-webhook'));
   return Array.from(new Uint8Array(sig), b => b.toString(16).padStart(2, '0')).join('');
 }
 

@@ -1,4 +1,4 @@
--- TG-S3 D1 Database Schema
+-- Stratum D1 Database Schema
 
 CREATE TABLE IF NOT EXISTS buckets (
     name            TEXT    PRIMARY KEY,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS objects (
     PRIMARY KEY (bucket, key)
 );
 
--- idx_objects_list 不需要: PRIMARY KEY (bucket, key) 已隐式创建等效索引
+-- idx_objects_list ä¸éœ€è¦: PRIMARY KEY (bucket, key) å·²éšå¼åˆ›å»ºç­‰æ•ˆç´¢å¼•
 CREATE INDEX IF NOT EXISTS idx_objects_modified ON objects (bucket, last_modified);
 CREATE INDEX IF NOT EXISTS idx_objects_file_uid ON objects (tg_file_unique_id);
 CREATE INDEX IF NOT EXISTS idx_objects_derived ON objects (bucket, derived_from);
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     PRIMARY KEY (chat_id, pref_key)
 );
 
--- 密码验证防暴力破解：按 token+IP 维度记录失败次数
+-- å¯†ç éªŒè¯é˜²æš´åŠ›ç ´è§£ï¼šæŒ‰ token+IP ç»´åº¦è®°å½•å¤±è´¥æ¬¡æ•°
 CREATE TABLE IF NOT EXISTS share_password_attempts (
     token           TEXT    NOT NULL,
     ip              TEXT    NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS share_password_attempts (
     PRIMARY KEY (token, ip)
 );
 
--- S3 API 凭据: 多凭据 + 权限管理
+-- S3 API å‡­æ®: å¤šå‡­æ® + æƒé™ç®¡ç†
 CREATE TABLE IF NOT EXISTS credentials (
     access_key_id       TEXT    PRIMARY KEY,
     secret_access_key   TEXT    NOT NULL,
@@ -146,6 +146,6 @@ CREATE TABLE IF NOT EXISTS lifecycle_rules (
 CREATE INDEX IF NOT EXISTS idx_lifecycle_bucket ON lifecycle_rules (bucket);
 CREATE INDEX IF NOT EXISTS idx_lifecycle_enabled ON lifecycle_rules (enabled, bucket);
 
--- [Phase 2 预留] 分块上传/下载实现时需要的 objects 表扩展:
+-- [Phase 2 é¢„ç•™] åˆ†å—ä¸Šä¼ /ä¸‹è½½å®žçŽ°æ—¶éœ€è¦çš„ objects è¡¨æ‰©å±•:
 -- ALTER TABLE objects ADD COLUMN is_chunked INTEGER NOT NULL DEFAULT 0;
 -- ALTER TABLE objects ADD COLUMN chunk_count INTEGER;

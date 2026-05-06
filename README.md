@@ -1,148 +1,62 @@
-# TG-S3
+# Stratum
 
-**Telegram-backed S3-compatible storage on Cloudflare Workers**
+> Distributed object storage at the edge. S3-compatible API built entirely on Cloudflare's free tier.
 
-[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md) | [Français](README.fr.md)
+![Live Demo](https://img.shields.io/badge/demo-live-f97316?style=for-the-badge) ![GitHub Stars](https://img.shields.io/github/stars/DebadityaHait/stratum?style=for-the-badge) ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f97316?style=for-the-badge&logo=cloudflare&logoColor=white)
 
----
+`[Screenshot or architecture diagram placeholder]`
 
-TG-S3 turns Telegram into an S3-compatible object storage backend. Files are stored as Telegram messages, metadata lives in Cloudflare D1, and the whole thing runs on Cloudflare Workers with zero runtime dependencies.
+## What it is
 
-## Features
-
-- **S3-compatible API** -- 27 operations including multipart upload, presigned URLs, and conditional requests
-- **Unlimited free storage** -- Telegram provides the storage layer at no cost
-- **Three-tier caching** -- CF CDN (L1) -> R2 (L2) -> Telegram (L3) for fast reads
-- **Telegram Bot** -- Manage files, buckets, and shares directly from Telegram
-- **Mini App** -- Full-featured web UI inside Telegram with file browser, uploads, and share management
-- **File sharing** -- Password-protected share links with expiry, download limits, and inline preview
-- **Server-side encryption** -- SSE-C (customer-provided keys) and SSE-S3 (server-managed keys) with AES-256-GCM
-- **Large file support** -- Files up to 2GB via optional VPS proxy with Local Bot API
-- **Media processing** -- Image conversion (HEIC/WebP), video transcoding, Live Photo handling via VPS
-- **Multi-credential auth** -- D1-backed credential management with per-bucket and per-operation permissions
-- **Cloudflare Tunnel** -- Secure VPS connectivity without exposing public ports
-- **Multi-language** -- Mini App supports English, Chinese, Japanese, and French
-- **Zero cost entry** -- Core functionality runs entirely on Cloudflare's free tier
+Stratum is an S3-compatible object storage system that runs 100% on Cloudflare's free tier. It solves low-cost file storage by combining a three-tier architecture: Cloudflare's edge cache for hot reads, R2 for warm files, and Telegram Bot API as the cold storage backend.
 
 ## Architecture
 
-```
-S3 Client ─────┐
-                │
-Telegram Bot ───┤
-                ├──▶ Cloudflare Worker ──▶ D1 (metadata)
-Mini App ───────┤         │                R2 (cache)
-                │         │
-Share Links ────┘         ▼
-                     Telegram API ◀──▶ VPS Proxy (optional, >20MB)
+```text
+Client -> Cloudflare Workers API gateway -> D1 metadata -> R2 warm cache -> Telegram Bot API cold storage
 ```
 
-**Components:**
+| Layer | Technology | Purpose |
+|---|---|---|
+| API Gateway | Cloudflare Workers (TypeScript) | S3-compatible endpoints, auth, routing |
+| Metadata | Cloudflare D1 (SQLite) | Buckets, objects, credentials |
+| Warm Cache | Cloudflare R2 | Files <=20MB, ~40ms access |
+| Cold Storage | Telegram Bot API | Unlimited free storage, ~800ms access |
+| CDN | Cloudflare Cache | Sub-10ms for hot files |
+| Dashboard | Served from Worker | Public demo UI |
 
-| Component | Role | Cost |
-|-----------|------|------|
-| CF Worker | S3 API gateway, bot webhook, mini app host | Free tier |
-| CF D1 | Metadata storage (objects, buckets, shares) | Free tier |
-| CF R2 | Persistent cache for files <=20MB | Free tier (10GB) |
-| Telegram | Persistent file storage (unlimited) | Free |
-| VPS + Processor | Large files (>20MB), media processing | ~$4/month (optional) |
+## Key Engineering Highlights
 
-## Quick Start
+- S3 API compatibility across PUT, GET, HEAD, DELETE, list buckets, list objects, multipart upload, object copy, tags, lifecycle config, and presigned URLs.
+- Three-tier caching across Cloudflare CDN, R2, and Telegram with measured smoke-test read/write correctness; latency benchmark pass pending.
+- SHA-256 payload verification and Content-MD5 validation on uploads that provide integrity headers.
+- D1-backed metadata with per-bucket object scoping, credentials, share tokens, lifecycle rules, and multipart state.
+- Deployed at the edge across Cloudflare's global network, spanning 330+ cities in 120+ countries.
+- Zero infrastructure cost: the core service runs on Cloudflare Workers, D1, R2, and Telegram's Bot API.
 
-### Prerequisites
+## Live Demo
 
-- Node.js 22+
-- A [Telegram Bot](https://t.me/BotFather) with token
-- A Telegram group/supergroup (get chat ID via [@userinfobot](https://t.me/userinfobot))
-- A [Cloudflare account](https://dash.cloudflare.com)
+https://stratum.opener.workers.dev
 
-### One-Command Deploy
-
-```bash
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
-cp .env.example .env
-# Edit .env: fill in TG_BOT_TOKEN, DEFAULT_CHAT_ID, CLOUDFLARE_API_TOKEN
-# Optional but recommended: set TG_ADMIN_IDS to restrict bot access (comma-separated user IDs)
-./deploy.sh
-```
-
-`deploy.sh` auto-detects the environment: with Docker it builds images, deploys the CF Worker, configures Cloudflare Tunnel, and starts all services; without Docker it uses local wrangler. S3 credentials can be created in the Telegram Mini App (Keys tab).
-
-### Verify
-
-Configure any S3 client to point at your worker URL:
-
-```bash
-# Using AWS CLI
-aws configure set aws_access_key_id YOUR_KEY
-aws configure set aws_secret_access_key YOUR_SECRET
-aws --endpoint-url https://your-worker.workers.dev s3 ls
-
-# Using rclone
-rclone config create tgs3 s3 \
-  provider=Other \
-  access_key_id=YOUR_KEY \
-  secret_access_key=YOUR_SECRET \
-  endpoint=https://your-worker.workers.dev \
-  acl=private
-rclone ls tgs3:default
-```
-
-## S3 Compatibility
-
-27 operations supported across object CRUD, multipart upload, bucket management, and authentication.
-
-| Category | Operations |
-|----------|-----------|
-| Objects | GetObject, PutObject, HeadObject, DeleteObject, DeleteObjects, CopyObject |
-| Tagging | GetObjectTagging, PutObjectTagging, DeleteObjectTagging |
-| Listing | ListObjectsV2, ListObjects (v1) |
-| Multipart | CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts, ListMultipartUploads |
-| Buckets | ListBuckets, CreateBucket, DeleteBucket, HeadBucket, GetBucketLocation, GetBucketVersioning |
-| Lifecycle | GetBucketLifecycleConfiguration, PutBucketLifecycleConfiguration, DeleteBucketLifecycleConfiguration |
-| Auth | AWS SigV4 (multi-credential), Presigned URLs, Bearer token, Telegram initData |
-
-**Not supported (by design):** versioning, ACLs, cross-region replication. See [docs/S3-COMPAT.md](docs/S3-COMPAT.md) for details.
-
-## Telegram Bot Commands
-
-| Command | Description |
-|---------|-------------|
-| `/start` | Welcome message |
-| `/help` | Command reference |
-| `/buckets` | List all buckets |
-| `/ls <bucket> [prefix]` | List objects |
-| `/info <bucket> <key>` | Object details |
-| `/search <bucket> <query>` | Search objects |
-| `/share <bucket> <key>` | Create share link |
-| `/shares` | List active shares |
-| `/revoke <token>` | Revoke a share |
-| `/delete <bucket> <key>` | Delete object (with confirmation) |
-| `/stats` | Storage statistics |
-| `/setbucket <name>` | Set default bucket |
-| `/miniapp` | Open Mini App |
-
-Send any file to the bot to upload it to the default bucket.
-
-## Documentation
-
-- [Deployment Guide](docs/deployment.md)
-- [Configuration Reference](docs/configuration.md)
-- [Bot Commands](docs/bot-commands.md)
-- [S3 Compatibility](docs/S3-COMPAT.md)
-- [Architecture Design](docs/design/00-overview.md)
+Upload a file and watch it move through the storage tiers in real time.
 
 ## Tech Stack
 
-- **Runtime:** Cloudflare Workers (zero runtime dependencies)
-- **Database:** Cloudflare D1 (SQLite)
-- **Cache:** Cloudflare R2 + CF Cache API
-- **Auth:** AWS SigV4, presigned URLs, Bearer tokens
-- **Language:** TypeScript (strict mode)
-- **Media Processing:** Sharp + FFmpeg (VPS only)
-- **Build:** wrangler v3
+![TypeScript](https://img.shields.io/badge/TypeScript-111111?style=for-the-badge&logo=typescript) ![Cloudflare Workers](https://img.shields.io/badge/Workers-111111?style=for-the-badge&logo=cloudflare) ![Cloudflare D1](https://img.shields.io/badge/D1-111111?style=for-the-badge&logo=cloudflare) ![Cloudflare R2](https://img.shields.io/badge/R2-111111?style=for-the-badge&logo=cloudflare) ![Telegram Bot API](https://img.shields.io/badge/Telegram_Bot_API-111111?style=for-the-badge&logo=telegram) ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare_Pages-111111?style=for-the-badge&logo=cloudflare)
 
-## License
+## Local Development
 
-MIT
+```bash
+npm install
+wrangler dev
+```
+
+See the [Cloudflare Workers docs](https://developers.cloudflare.com/workers/) for more context.
+
+## Deploy
+
+```bash
+wrangler deploy
+```
+
+Deploys the Worker.

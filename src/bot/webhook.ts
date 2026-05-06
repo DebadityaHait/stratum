@@ -458,7 +458,7 @@ export async function registerWebhook(workerUrl: string, env: Env): Promise<bool
     body: JSON.stringify({
       url: webhookUrl,
       allowed_updates: ['message', 'callback_query'],
-      secret_token: await deriveWebhookSecret(env.TG_BOT_TOKEN),
+      secret_token: env.WEBHOOK_SECRET || await deriveWebhookSecret(env.TG_BOT_TOKEN),
     }),
   });
   const data = await res.json() as { ok: boolean };

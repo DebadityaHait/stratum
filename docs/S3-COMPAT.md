@@ -1,6 +1,6 @@
 # S3 Compatibility Status
 
-tg-s3 implements an S3-compatible API on top of Telegram as the storage backend.
+Stratum implements an S3-compatible API on top of Telegram as the storage backend.
 This document records the compatibility status and deliberate design decisions.
 
 ## Supported Operations (27)
@@ -53,7 +53,7 @@ This document records the compatibility status and deliberate design decisions.
 - **SigV4 header auth**: Full, with specific error codes (SignatureDoesNotMatch, InvalidAccessKeyId, RequestTimeTooSkewed, AuthorizationHeaderMalformed)
 - **Presigned URLs**: Full, 7-day max expiry, SigV4 query string auth
 - **AWS chunked streaming** (`STREAMING-AWS4-HMAC-SHA256-PAYLOAD`): Body parsing supported; per-chunk signature verification skipped (HTTPS provides transport integrity)
-- **Bearer token**: tg-s3 extension for simplified auth (Telegram WebApp initData)
+- **Bearer token**: Stratum extension for simplified auth (Telegram WebApp initData)
 - **Simple Upload API**: `PUT /api/upload?bucket=...&key=...` with `Authorization: Bearer <access_key_id>:<secret_access_key>`. No AWS signature needed. Designed for iOS Shortcuts, curl, scripts, etc.
 
 ## Response Headers
@@ -81,7 +81,7 @@ This document records the compatibility status and deliberate design decisions.
 
 2. **Semantic scope**: Versioning changes the behavior of nearly every S3 operation. DELETE no longer deletes but creates a "delete marker". GET must resolve version chains. A new ListObjectVersions operation is needed. The implementation cost is disproportionate to the value.
 
-3. **Use case mismatch**: tg-s3's primary use case is a personal cloud drive backed by Telegram. Users needing version protection are better served by a trash bin / soft-delete feature (planned), which provides accidental deletion recovery at a fraction of the complexity.
+3. **Use case mismatch**: Stratum's primary use case is a personal cloud drive backed by Telegram. Users needing version protection are better served by a trash bin / soft-delete feature (planned), which provides accidental deletion recovery at a fraction of the complexity.
 
 4. **Ecosystem reality**: Many S3-compatible services (Cloudflare R2, Backblaze B2, etc.) also do not implement versioning. No mainstream S3 client requires it to function.
 

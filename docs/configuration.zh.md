@@ -1,102 +1,102 @@
-# 配置参考
+# é…ç½®å‚è€ƒ
 
-[English](configuration.md) | [中文](configuration.zh.md) | [日本語](configuration.ja.md) | [Français](configuration.fr.md)
+[English](configuration.md) | [ä¸­æ–‡](configuration.zh.md) | [æ—¥æœ¬èªž](configuration.ja.md) | [FranÃ§ais](configuration.fr.md)
 
-## 环境变量
+## çŽ¯å¢ƒå˜é‡
 
-所有配置均通过环境变量完成。Docker 部署时在 `.env` 文件中设置；手动部署时，`deploy.sh` 会从 `.env` 读取并推送为 Cloudflare secrets。
+æ‰€æœ‰é…ç½®å‡é€šè¿‡çŽ¯å¢ƒå˜é‡å®Œæˆã€‚Docker éƒ¨ç½²æ—¶åœ¨ `.env` æ–‡ä»¶ä¸­è®¾ç½®ï¼›æ‰‹åŠ¨éƒ¨ç½²æ—¶ï¼Œ`deploy.sh` ä¼šä»Ž `.env` è¯»å–å¹¶æŽ¨é€ä¸º Cloudflare secretsã€‚
 
-### 必填
+### å¿…å¡«
 
-| 变量 | 说明 | 示例 |
+| å˜é‡ | è¯´æ˜Ž | ç¤ºä¾‹ |
 |------|------|------|
-| `TG_BOT_TOKEN` | 从 @BotFather 获取的 Telegram Bot API token | `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` |
-| `DEFAULT_CHAT_ID` | Telegram 群组/超级群组的 chat ID | `-1001234567890` |
+| `TG_BOT_TOKEN` | ä»Ž @BotFather èŽ·å–çš„ Telegram Bot API token | `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` |
+| `DEFAULT_CHAT_ID` | Telegram ç¾¤ç»„/è¶…çº§ç¾¤ç»„çš„ chat ID | `-1001234567890` |
 
-### 推荐
+### æŽ¨è
 
-| 变量 | 说明 | 示例 |
+| å˜é‡ | è¯´æ˜Ž | ç¤ºä¾‹ |
 |------|------|------|
-| `TG_ADMIN_IDS` | 允许使用 Bot 的 Telegram 用户 ID（逗号分隔）。未设置则任何用户都可使用。 | `123456789,987654321` |
+| `TG_ADMIN_IDS` | å…è®¸ä½¿ç”¨ Bot çš„ Telegram ç”¨æˆ· IDï¼ˆé€—å·åˆ†éš”ï¼‰ã€‚æœªè®¾ç½®åˆ™ä»»ä½•ç”¨æˆ·éƒ½å¯ä½¿ç”¨ã€‚ | `123456789,987654321` |
 
-获取 Telegram 用户 ID：向 [@userinfobot](https://t.me/userinfobot) 发送任意消息。
+èŽ·å– Telegram ç”¨æˆ· IDï¼šå‘ [@userinfobot](https://t.me/userinfobot) å‘é€ä»»æ„æ¶ˆæ¯ã€‚
 
-### 自动生成（无需手动设置）
+### è‡ªåŠ¨ç”Ÿæˆï¼ˆæ— éœ€æ‰‹åŠ¨è®¾ç½®ï¼‰
 
-| 变量 | 说明 | 生成方式 |
+| å˜é‡ | è¯´æ˜Ž | ç”Ÿæˆæ–¹å¼ |
 |------|------|----------|
-| `VPS_SECRET` | Worker 与 processor 之间的认证密钥 | `deploy.sh`（随机 48 字符） |
-| `SSE_MASTER_KEY` | SSE-S3 服务端加密的 Base64 密钥。deploy.sh 自动生成。 | `deploy.sh` |
-| S3 凭据 | S3 API 认证用的 access key + secret key | `deploy.sh`（在 D1 `credentials` 表中创建） |
-| Webhook 密钥 | Telegram webhook 验证密钥 | 由 `TG_BOT_TOKEN` 通过 HMAC-SHA256 派生 |
+| `VPS_SECRET` | Worker ä¸Ž processor ä¹‹é—´çš„è®¤è¯å¯†é’¥ | `deploy.sh`ï¼ˆéšæœº 48 å­—ç¬¦ï¼‰ |
+| `SSE_MASTER_KEY` | SSE-S3 æœåŠ¡ç«¯åŠ å¯†çš„ Base64 å¯†é’¥ã€‚deploy.sh è‡ªåŠ¨ç”Ÿæˆã€‚ | `deploy.sh` |
+| S3 å‡­æ® | S3 API è®¤è¯ç”¨çš„ access key + secret key | `deploy.sh`ï¼ˆåœ¨ D1 `credentials` è¡¨ä¸­åˆ›å»ºï¼‰ |
+| Webhook å¯†é’¥ | Telegram webhook éªŒè¯å¯†é’¥ | ç”± `TG_BOT_TOKEN` é€šè¿‡ HMAC-SHA256 æ´¾ç”Ÿ |
 
-S3 凭据在部署时显示一次。之后可在 Mini App 的 **Keys** 标签页中管理（创建、撤销、设置单桶权限）。
+S3 å‡­æ®åœ¨éƒ¨ç½²æ—¶æ˜¾ç¤ºä¸€æ¬¡ã€‚ä¹‹åŽå¯åœ¨ Mini App çš„ **Keys** æ ‡ç­¾é¡µä¸­ç®¡ç†ï¼ˆåˆ›å»ºã€æ’¤é”€ã€è®¾ç½®å•æ¡¶æƒé™ï¼‰ã€‚
 
-### Cloudflare（Docker 部署）
+### Cloudflareï¼ˆDocker éƒ¨ç½²ï¼‰
 
-| 变量 | 说明 | 示例 |
+| å˜é‡ | è¯´æ˜Ž | ç¤ºä¾‹ |
 |------|------|------|
-| `CLOUDFLARE_API_TOKEN` | CF API token（Docker 部署必填，手动部署可选） | `cf-api-token...` |
-| `CF_ACCOUNT_ID` | CF 账户 ID（未设置时自动检测） | `abc123def456` |
-| `CF_CUSTOM_DOMAIN` | Worker 的自定义域名（同时启用 tunnel 自动创建） | `s3.example.com` |
-| `CF_TUNNEL_TOKEN` | Cloudflare Tunnel 连接器 token（设置 CF_CUSTOM_DOMAIN 时自动创建，也可手动设置） | `eyJhIjo...` |
+| `CLOUDFLARE_API_TOKEN` | CF API tokenï¼ˆDocker éƒ¨ç½²å¿…å¡«ï¼Œæ‰‹åŠ¨éƒ¨ç½²å¯é€‰ï¼‰ | `cf-api-token...` |
+| `CF_ACCOUNT_ID` | CF è´¦æˆ· IDï¼ˆæœªè®¾ç½®æ—¶è‡ªåŠ¨æ£€æµ‹ï¼‰ | `abc123def456` |
+| `CF_CUSTOM_DOMAIN` | Worker çš„è‡ªå®šä¹‰åŸŸåï¼ˆåŒæ—¶å¯ç”¨ tunnel è‡ªåŠ¨åˆ›å»ºï¼‰ | `s3.example.com` |
+| `CF_TUNNEL_TOKEN` | Cloudflare Tunnel è¿žæŽ¥å™¨ tokenï¼ˆè®¾ç½® CF_CUSTOM_DOMAIN æ—¶è‡ªåŠ¨åˆ›å»ºï¼Œä¹Ÿå¯æ‰‹åŠ¨è®¾ç½®ï¼‰ | `eyJhIjo...` |
 
-API token 权限：Workers Scripts:Edit、D1:Edit、R2:Edit、Account Settings:Read。如需 tunnel 自动创建，需额外添加 Cloudflare Tunnel:Edit 和 DNS:Edit。
+API token æƒé™ï¼šWorkers Scripts:Editã€D1:Editã€R2:Editã€Account Settings:Readã€‚å¦‚éœ€ tunnel è‡ªåŠ¨åˆ›å»ºï¼Œéœ€é¢å¤–æ·»åŠ  Cloudflare Tunnel:Edit å’Œ DNS:Editã€‚
 
-### VPS / Processor（可选）
+### VPS / Processorï¼ˆå¯é€‰ï¼‰
 
-| 变量 | 说明 | 默认值 |
+| å˜é‡ | è¯´æ˜Ž | é»˜è®¤å€¼ |
 |------|------|--------|
-| `VPS_SSH` | VPS 部署的 SSH 连接字符串 | -- |
-| `VPS_DEPLOY_DIR` | VPS 上的部署目录 | `/opt/tg-s3` |
-| `VPS_PORT` | Processor 服务端口 | `3000` |
-| `VPS_URL` | VPS processor 的公网 URL（使用 tunnel 时自动设置） | -- |
-| `VPS_SECRET` | Worker 与 processor 之间的认证密钥（自动生成） | -- |
-| `TELEGRAM_API_ID` | Telegram API ID，用于 Local Bot API（获取方式见下方），启用 2GB 文件支持 | -- |
-| `TELEGRAM_API_HASH` | Telegram API Hash，用于 Local Bot API（获取方式见下方） | -- |
+| `VPS_SSH` | VPS éƒ¨ç½²çš„ SSH è¿žæŽ¥å­—ç¬¦ä¸² | -- |
+| `VPS_DEPLOY_DIR` | VPS ä¸Šçš„éƒ¨ç½²ç›®å½• | `/opt/stratum` |
+| `VPS_PORT` | Processor æœåŠ¡ç«¯å£ | `3000` |
+| `VPS_URL` | VPS processor çš„å…¬ç½‘ URLï¼ˆä½¿ç”¨ tunnel æ—¶è‡ªåŠ¨è®¾ç½®ï¼‰ | -- |
+| `VPS_SECRET` | Worker ä¸Ž processor ä¹‹é—´çš„è®¤è¯å¯†é’¥ï¼ˆè‡ªåŠ¨ç”Ÿæˆï¼‰ | -- |
+| `TELEGRAM_API_ID` | Telegram API IDï¼Œç”¨äºŽ Local Bot APIï¼ˆèŽ·å–æ–¹å¼è§ä¸‹æ–¹ï¼‰ï¼Œå¯ç”¨ 2GB æ–‡ä»¶æ”¯æŒ | -- |
+| `TELEGRAM_API_HASH` | Telegram API Hashï¼Œç”¨äºŽ Local Bot APIï¼ˆèŽ·å–æ–¹å¼è§ä¸‹æ–¹ï¼‰ | -- |
 
-**获取 TELEGRAM_API_ID 和 TELEGRAM_API_HASH：**
+**èŽ·å– TELEGRAM_API_ID å’Œ TELEGRAM_API_HASHï¼š**
 
-1. 访问 https://my.telegram.org ，用手机号登录
-2. 点击 "API development tools"
-3. 填写表单创建新应用（以下字段仅为元数据，不影响功能）：
-   - **App title**：随意填写，如 `tg-s3`
-   - **Short name**：5-32 个字母数字，如 `tgs3s`
-   - **URL**：留空
-   - **Platform**：选择 `Other`
-   - **Description**：留空
-4. 创建完成后，将 `api_id`（数字）和 `api_hash`（字符串）复制到 `.env` 中
+1. è®¿é—® https://my.telegram.org ï¼Œç”¨æ‰‹æœºå·ç™»å½•
+2. ç‚¹å‡» "API development tools"
+3. å¡«å†™è¡¨å•åˆ›å»ºæ–°åº”ç”¨ï¼ˆä»¥ä¸‹å­—æ®µä»…ä¸ºå…ƒæ•°æ®ï¼Œä¸å½±å“åŠŸèƒ½ï¼‰ï¼š
+   - **App title**ï¼šéšæ„å¡«å†™ï¼Œå¦‚ `Stratum`
+   - **Short name**ï¼š5-32 ä¸ªå­—æ¯æ•°å­—ï¼Œå¦‚ `stratum`
+   - **URL**ï¼šç•™ç©º
+   - **Platform**ï¼šé€‰æ‹© `Other`
+   - **Description**ï¼šç•™ç©º
+4. åˆ›å»ºå®ŒæˆåŽï¼Œå°† `api_id`ï¼ˆæ•°å­—ï¼‰å’Œ `api_hash`ï¼ˆå­—ç¬¦ä¸²ï¼‰å¤åˆ¶åˆ° `.env` ä¸­
 
-### Worker 运行时
+### Worker è¿è¡Œæ—¶
 
-以下变量在 `wrangler.toml` 中以 vars 或 bindings 形式配置：
+ä»¥ä¸‹å˜é‡åœ¨ `wrangler.toml` ä¸­ä»¥ vars æˆ– bindings å½¢å¼é…ç½®ï¼š
 
-| 变量 | 说明 | 默认值 |
+| å˜é‡ | è¯´æ˜Ž | é»˜è®¤å€¼ |
 |------|------|--------|
-| `S3_REGION` | 报告的 AWS 区域 | `us-east-1` |
-| `WORKER_URL` | Worker 的公网 URL（由 deploy.sh 自动设置） | -- |
+| `S3_REGION` | æŠ¥å‘Šçš„ AWS åŒºåŸŸ | `us-east-1` |
+| `WORKER_URL` | Worker çš„å…¬ç½‘ URLï¼ˆç”± deploy.sh è‡ªåŠ¨è®¾ç½®ï¼‰ | -- |
 
-### D1 和 R2 绑定
+### D1 å’Œ R2 ç»‘å®š
 
-在 `wrangler.toml` 中配置：
+åœ¨ `wrangler.toml` ä¸­é…ç½®ï¼š
 
 ```toml
 [[d1_databases]]
 binding = "DB"
-database_name = "tg-s3-db"
+database_name = "stratum-db"
 database_id = "your-database-id"
 
 [[r2_buckets]]
 binding = "CACHE"
-bucket_name = "tg-s3-cache"
+bucket_name = "stratum-cache"
 ```
 
 ## wrangler.toml
 
-关键配置段：
+å…³é”®é…ç½®æ®µï¼š
 
 ```toml
-name = "tg-s3"
+name = "stratum"
 main = "src/index.ts"
 compatibility_date = "2026-03-15"
 
@@ -104,49 +104,49 @@ compatibility_date = "2026-03-15"
 S3_REGION = "us-east-1"
 
 [triggers]
-crons = ["0 */6 * * *"]  # 每 6 小时执行维护任务
+crons = ["0 */6 * * *"]  # æ¯ 6 å°æ—¶æ‰§è¡Œç»´æŠ¤ä»»åŠ¡
 ```
 
-### 定时维护任务
+### å®šæ—¶ç»´æŠ¤ä»»åŠ¡
 
-定时处理器每 6 小时运行一次，执行以下操作：
+å®šæ—¶å¤„ç†å™¨æ¯ 6 å°æ—¶è¿è¡Œä¸€æ¬¡ï¼Œæ‰§è¡Œä»¥ä¸‹æ“ä½œï¼š
 
-1. 清理已过期的分享 token
-2. 清理孤立的分享 token（对象已删除但分享记录仍存在）
-3. 清理超过 24 小时的分段上传
-4. 清理孤立的分块数据
-5. 清理已过期的密码尝试记录
-6. 一致性检查（动态抽样约 2% 的对象，范围 [5, 50]，验证 Telegram 文件可访问性）
-7. R2 缓存清理（清除已从 D1 删除的对象缓存）
-8. 生命周期规则（删除匹配存储桶生命周期配置的过期对象）
+1. æ¸…ç†å·²è¿‡æœŸçš„åˆ†äº« token
+2. æ¸…ç†å­¤ç«‹çš„åˆ†äº« tokenï¼ˆå¯¹è±¡å·²åˆ é™¤ä½†åˆ†äº«è®°å½•ä»å­˜åœ¨ï¼‰
+3. æ¸…ç†è¶…è¿‡ 24 å°æ—¶çš„åˆ†æ®µä¸Šä¼ 
+4. æ¸…ç†å­¤ç«‹çš„åˆ†å—æ•°æ®
+5. æ¸…ç†å·²è¿‡æœŸçš„å¯†ç å°è¯•è®°å½•
+6. ä¸€è‡´æ€§æ£€æŸ¥ï¼ˆåŠ¨æ€æŠ½æ ·çº¦ 2% çš„å¯¹è±¡ï¼ŒèŒƒå›´ [5, 50]ï¼ŒéªŒè¯ Telegram æ–‡ä»¶å¯è®¿é—®æ€§ï¼‰
+7. R2 ç¼“å­˜æ¸…ç†ï¼ˆæ¸…é™¤å·²ä»Ž D1 åˆ é™¤çš„å¯¹è±¡ç¼“å­˜ï¼‰
+8. ç”Ÿå‘½å‘¨æœŸè§„åˆ™ï¼ˆåˆ é™¤åŒ¹é…å­˜å‚¨æ¡¶ç”Ÿå‘½å‘¨æœŸé…ç½®çš„è¿‡æœŸå¯¹è±¡ï¼‰
 
-## 安全说明
+## å®‰å…¨è¯´æ˜Ž
 
-- **S3 凭据**存储在 D1 中，用于 AWS SigV4 签名验证。自动生成高强度随机值。在 Mini App Keys 标签页中管理。
-- **Webhook 密钥**由 `TG_BOT_TOKEN` 通过 HMAC-SHA256 确定性派生，无需单独的环境变量。
-- **VPS_SECRET** 用于 Worker 与 processor 之间的通信认证。未设置时自动生成。
-- **CLOUDFLARE_API_TOKEN** 拥有对你的 CF 账户的写入权限，切勿提交到 git。
-- `.env` 文件默认已被 `.gitignore` 和 `.dockerignore` 排除。
+- **S3 å‡­æ®**å­˜å‚¨åœ¨ D1 ä¸­ï¼Œç”¨äºŽ AWS SigV4 ç­¾åéªŒè¯ã€‚è‡ªåŠ¨ç”Ÿæˆé«˜å¼ºåº¦éšæœºå€¼ã€‚åœ¨ Mini App Keys æ ‡ç­¾é¡µä¸­ç®¡ç†ã€‚
+- **Webhook å¯†é’¥**ç”± `TG_BOT_TOKEN` é€šè¿‡ HMAC-SHA256 ç¡®å®šæ€§æ´¾ç”Ÿï¼Œæ— éœ€å•ç‹¬çš„çŽ¯å¢ƒå˜é‡ã€‚
+- **VPS_SECRET** ç”¨äºŽ Worker ä¸Ž processor ä¹‹é—´çš„é€šä¿¡è®¤è¯ã€‚æœªè®¾ç½®æ—¶è‡ªåŠ¨ç”Ÿæˆã€‚
+- **CLOUDFLARE_API_TOKEN** æ‹¥æœ‰å¯¹ä½ çš„ CF è´¦æˆ·çš„å†™å…¥æƒé™ï¼Œåˆ‡å‹¿æäº¤åˆ° gitã€‚
+- `.env` æ–‡ä»¶é»˜è®¤å·²è¢« `.gitignore` å’Œ `.dockerignore` æŽ’é™¤ã€‚
 
-## 速率限制
+## é€ŸçŽ‡é™åˆ¶
 
-### Cloudflare 免费计划
+### Cloudflare å…è´¹è®¡åˆ’
 
-| 资源 | 限制 |
+| èµ„æº | é™åˆ¶ |
 |------|------|
-| Worker 请求数 | 100,000/天 |
-| D1 读取 | 5,000,000/天 |
-| D1 写入 | 100,000/天 |
-| 每次调用的 D1 查询数 | 50 |
-| R2 A 类操作（写入） | 1,000,000/月 |
-| R2 B 类操作（读取） | 10,000,000/月 |
-| R2 存储空间 | 10 GB |
+| Worker è¯·æ±‚æ•° | 100,000/å¤© |
+| D1 è¯»å– | 5,000,000/å¤© |
+| D1 å†™å…¥ | 100,000/å¤© |
+| æ¯æ¬¡è°ƒç”¨çš„ D1 æŸ¥è¯¢æ•° | 50 |
+| R2 A ç±»æ“ä½œï¼ˆå†™å…¥ï¼‰ | 1,000,000/æœˆ |
+| R2 B ç±»æ“ä½œï¼ˆè¯»å–ï¼‰ | 10,000,000/æœˆ |
+| R2 å­˜å‚¨ç©ºé—´ | 10 GB |
 
 ### Telegram Bot API
 
-| 资源 | 限制 |
+| èµ„æº | é™åˆ¶ |
 |------|------|
-| 每频道消息数 | 约 20/分钟 |
-| 全局消息速率 | 约 30/秒 |
-| 文件下载 | 20 MB（Bot API）/ 2 GB（Local Bot API） |
-| 文件上传 | 20 MB（Bot API，与下载限制对齐）/ 2 GB（Local Bot API） |
+| æ¯é¢‘é“æ¶ˆæ¯æ•° | çº¦ 20/åˆ†é’Ÿ |
+| å…¨å±€æ¶ˆæ¯é€ŸçŽ‡ | çº¦ 30/ç§’ |
+| æ–‡ä»¶ä¸‹è½½ | 20 MBï¼ˆBot APIï¼‰/ 2 GBï¼ˆLocal Bot APIï¼‰ |
+| æ–‡ä»¶ä¸Šä¼  | 20 MBï¼ˆBot APIï¼Œä¸Žä¸‹è½½é™åˆ¶å¯¹é½ï¼‰/ 2 GBï¼ˆLocal Bot APIï¼‰ |

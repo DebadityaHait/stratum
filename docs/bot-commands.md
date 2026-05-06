@@ -1,10 +1,10 @@
 # Telegram Bot Commands
 
-[English](bot-commands.md) | [中文](bot-commands.zh.md) | [日本語](bot-commands.ja.md) | [Français](bot-commands.fr.md)
+[English](bot-commands.md) | [ä¸­æ–‡](bot-commands.zh.md) | [æ—¥æœ¬èªž](bot-commands.ja.md) | [FranÃ§ais](bot-commands.fr.md)
 
 ## Overview
 
-The TG-S3 bot provides a Telegram interface for managing your S3 storage. All commands work in the designated storage group or in direct messages with the bot.
+The Stratum bot provides a Telegram interface for managing your S3 storage. All commands work in the designated storage group or in direct messages with the bot.
 
 ## Commands
 

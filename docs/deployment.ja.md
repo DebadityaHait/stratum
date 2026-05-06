@@ -1,210 +1,210 @@
-# デプロイガイド
+# ãƒ‡ãƒ—ãƒ­ã‚¤ã‚¬ã‚¤ãƒ‰
 
-[English](deployment.md) | [中文](deployment.zh.md) | [日本語](deployment.ja.md) | [Français](deployment.fr.md)
+[English](deployment.md) | [ä¸­æ–‡](deployment.zh.md) | [æ—¥æœ¬èªž](deployment.ja.md) | [FranÃ§ais](deployment.fr.md)
 
-## デプロイ構成
+## ãƒ‡ãƒ—ãƒ­ã‚¤æ§‹æˆ
 
-TG-S3 は 3 つのデプロイ構成をサポートしています：
+Stratum ã¯ 3 ã¤ã®ãƒ‡ãƒ—ãƒ­ã‚¤æ§‹æˆã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã¾ã™ï¼š
 
-| 構成 | コンポーネント | コスト | 機能 |
+| æ§‹æˆ | ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆ | ã‚³ã‚¹ãƒˆ | æ©Ÿèƒ½ |
 |------|----------------|--------|------|
-| Minimal | CF Worker + D1 + R2 | $0/月 | S3 API、Bot、Mini App、最大 20MB のファイル |
-| Standard | Minimal + VPS | 約 $4/月 | + 最大 2GB のファイル、メディア処理 |
-| Enhanced | Standard + CF 有料プラン | 約 $9/月 | + 高いレート制限、D1 クエリ増量 |
+| Minimal | CF Worker + D1 + R2 | $0/æœˆ | S3 APIã€Botã€Mini Appã€æœ€å¤§ 20MB ã®ãƒ•ã‚¡ã‚¤ãƒ« |
+| Standard | Minimal + VPS | ç´„ $4/æœˆ | + æœ€å¤§ 2GB ã®ãƒ•ã‚¡ã‚¤ãƒ«ã€ãƒ¡ãƒ‡ã‚£ã‚¢å‡¦ç† |
+| Enhanced | Standard + CF æœ‰æ–™ãƒ—ãƒ©ãƒ³ | ç´„ $9/æœˆ | + é«˜ã„ãƒ¬ãƒ¼ãƒˆåˆ¶é™ã€D1 ã‚¯ã‚¨ãƒªå¢—é‡ |
 
-## 前提条件
+## å‰ææ¡ä»¶
 
-1. **Telegram Bot** -- [@BotFather](https://t.me/BotFather) で作成し、トークンを保存
-2. **Telegram グループ** -- グループまたはスーパーグループを作成し、Bot を管理者として追加、Chat ID を取得
-3. **Cloudflare アカウント** -- [dash.cloudflare.com](https://dash.cloudflare.com) でサインアップ
-4. **Node.js 22+** -- wrangler CLI に必要（手動デプロイの場合のみ）
+1. **Telegram Bot** -- [@BotFather](https://t.me/BotFather) ã§ä½œæˆã—ã€ãƒˆãƒ¼ã‚¯ãƒ³ã‚’ä¿å­˜
+2. **Telegram ã‚°ãƒ«ãƒ¼ãƒ—** -- ã‚°ãƒ«ãƒ¼ãƒ—ã¾ãŸã¯ã‚¹ãƒ¼ãƒ‘ãƒ¼ã‚°ãƒ«ãƒ¼ãƒ—ã‚’ä½œæˆã—ã€Bot ã‚’ç®¡ç†è€…ã¨ã—ã¦è¿½åŠ ã€Chat ID ã‚’å–å¾—
+3. **Cloudflare ã‚¢ã‚«ã‚¦ãƒ³ãƒˆ** -- [dash.cloudflare.com](https://dash.cloudflare.com) ã§ã‚µã‚¤ãƒ³ã‚¢ãƒƒãƒ—
+4. **Node.js 22+** -- wrangler CLI ã«å¿…è¦ï¼ˆæ‰‹å‹•ãƒ‡ãƒ—ãƒ­ã‚¤ã®å ´åˆã®ã¿ï¼‰
 
-### Chat ID の取得
+### Chat ID ã®å–å¾—
 
-[@userinfobot](https://t.me/userinfobot) をグループに一時的に追加してください。Chat ID（`-1001234567890` のような負の数値）が返信されます。取得後は削除して構いません。
+[@userinfobot](https://t.me/userinfobot) ã‚’ã‚°ãƒ«ãƒ¼ãƒ—ã«ä¸€æ™‚çš„ã«è¿½åŠ ã—ã¦ãã ã•ã„ã€‚Chat IDï¼ˆ`-1001234567890` ã®ã‚ˆã†ãªè² ã®æ•°å€¤ï¼‰ãŒè¿”ä¿¡ã•ã‚Œã¾ã™ã€‚å–å¾—å¾Œã¯å‰Šé™¤ã—ã¦æ§‹ã„ã¾ã›ã‚“ã€‚
 
-### Cloudflare API トークンの作成
+### Cloudflare API ãƒˆãƒ¼ã‚¯ãƒ³ã®ä½œæˆ
 
-Docker デプロイの場合、[Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) で以下の権限を持つトークンを作成してください：
+Docker ãƒ‡ãƒ—ãƒ­ã‚¤ã®å ´åˆã€[Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) ã§ä»¥ä¸‹ã®æ¨©é™ã‚’æŒã¤ãƒˆãƒ¼ã‚¯ãƒ³ã‚’ä½œæˆã—ã¦ãã ã•ã„ï¼š
 - Account / Workers Scripts: Edit
 - Account / D1: Edit
 - Account / R2: Edit
 - Account / Account Settings: Read
-- Account / Cloudflare Tunnel: Edit *（トンネル使用時のみ）*
-- Zone / DNS: Edit *（カスタムドメインでトンネル使用時のみ）*
+- Account / Cloudflare Tunnel: Edit *ï¼ˆãƒˆãƒ³ãƒãƒ«ä½¿ç”¨æ™‚ã®ã¿ï¼‰*
+- Zone / DNS: Edit *ï¼ˆã‚«ã‚¹ã‚¿ãƒ ãƒ‰ãƒ¡ã‚¤ãƒ³ã§ãƒˆãƒ³ãƒãƒ«ä½¿ç”¨æ™‚ã®ã¿ï¼‰*
 
-## 方法 1: Docker デプロイ（推奨）
+## æ–¹æ³• 1: Docker ãƒ‡ãƒ—ãƒ­ã‚¤ï¼ˆæŽ¨å¥¨ï¼‰
 
-VPS デプロイに最適です。1 コマンドですべてを処理します。
+VPS ãƒ‡ãƒ—ãƒ­ã‚¤ã«æœ€é©ã§ã™ã€‚1 ã‚³ãƒžãƒ³ãƒ‰ã§ã™ã¹ã¦ã‚’å‡¦ç†ã—ã¾ã™ã€‚
 
 ```bash
-# クローンして設定
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
+# ã‚¯ãƒ­ãƒ¼ãƒ³ã—ã¦è¨­å®š
+git clone https://github.com/DebadityaHait/stratum.git
+cd stratum
 cp .env.example .env
 ```
 
-`.env` に必要な値を記入します（必須項目は 2 つのみ）：
+`.env` ã«å¿…è¦ãªå€¤ã‚’è¨˜å…¥ã—ã¾ã™ï¼ˆå¿…é ˆé …ç›®ã¯ 2 ã¤ã®ã¿ï¼‰ï¼š
 
 ```bash
-# 必須
+# å¿…é ˆ
 TG_BOT_TOKEN=123456:ABC-DEF...
 DEFAULT_CHAT_ID=-1001234567890
 
-# Docker デプロイ
+# Docker ãƒ‡ãƒ—ãƒ­ã‚¤
 CLOUDFLARE_API_TOKEN=your-cf-api-token
 
-# オプション：カスタムドメイン（トンネルの自動作成も有効化）
+# ã‚ªãƒ—ã‚·ãƒ§ãƒ³ï¼šã‚«ã‚¹ã‚¿ãƒ ãƒ‰ãƒ¡ã‚¤ãƒ³ï¼ˆãƒˆãƒ³ãƒãƒ«ã®è‡ªå‹•ä½œæˆã‚‚æœ‰åŠ¹åŒ–ï¼‰
 CF_CUSTOM_DOMAIN=s3.example.com
 ```
 
-その他の認証情報（S3 キー、VPS_SECRET、Webhook シークレット）はデプロイ時に**自動生成**されます。
+ãã®ä»–ã®èªè¨¼æƒ…å ±ï¼ˆS3 ã‚­ãƒ¼ã€VPS_SECRETã€Webhook ã‚·ãƒ¼ã‚¯ãƒ¬ãƒƒãƒˆï¼‰ã¯ãƒ‡ãƒ—ãƒ­ã‚¤æ™‚ã«**è‡ªå‹•ç”Ÿæˆ**ã•ã‚Œã¾ã™ã€‚
 
-デプロイ：
+ãƒ‡ãƒ—ãƒ­ã‚¤ï¼š
 
 ```bash
 ./deploy.sh
 ```
 
-スクリプトが環境を自動検出し、適切な処理を実行します：
-- **ホストに Docker がある場合：** イメージをビルドし、CF Worker をデプロイ、トンネルを設定（有効時）、全サービスを起動
-- **ホストに Docker がない場合：** ローカルの wrangler で Worker を直接デプロイ
+ã‚¹ã‚¯ãƒªãƒ—ãƒˆãŒç’°å¢ƒã‚’è‡ªå‹•æ¤œå‡ºã—ã€é©åˆ‡ãªå‡¦ç†ã‚’å®Ÿè¡Œã—ã¾ã™ï¼š
+- **ãƒ›ã‚¹ãƒˆã« Docker ãŒã‚ã‚‹å ´åˆï¼š** ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ãƒ“ãƒ«ãƒ‰ã—ã€CF Worker ã‚’ãƒ‡ãƒ—ãƒ­ã‚¤ã€ãƒˆãƒ³ãƒãƒ«ã‚’è¨­å®šï¼ˆæœ‰åŠ¹æ™‚ï¼‰ã€å…¨ã‚µãƒ¼ãƒ“ã‚¹ã‚’èµ·å‹•
+- **ãƒ›ã‚¹ãƒˆã« Docker ãŒãªã„å ´åˆï¼š** ãƒ­ãƒ¼ã‚«ãƒ«ã® wrangler ã§ Worker ã‚’ç›´æŽ¥ãƒ‡ãƒ—ãƒ­ã‚¤
 
-デプロイ後、Telegram Mini App の Keys タブで S3 認証情報を作成して S3 クライアントを接続してください。
+ãƒ‡ãƒ—ãƒ­ã‚¤å¾Œã€Telegram Mini App ã® Keys ã‚¿ãƒ–ã§ S3 èªè¨¼æƒ…å ±ã‚’ä½œæˆã—ã¦ S3 ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆã‚’æŽ¥ç¶šã—ã¦ãã ã•ã„ã€‚
 
-### Cloudflare Tunnel（VPS 向け推奨）
+### Cloudflare Tunnelï¼ˆVPS å‘ã‘æŽ¨å¥¨ï¼‰
 
-Cloudflare Tunnel はプロセッサと CF Worker 間に安全な接続を確立し、ポートの公開が不要になります。
+Cloudflare Tunnel ã¯ãƒ—ãƒ­ã‚»ãƒƒã‚µã¨ CF Worker é–“ã«å®‰å…¨ãªæŽ¥ç¶šã‚’ç¢ºç«‹ã—ã€ãƒãƒ¼ãƒˆã®å…¬é–‹ãŒä¸è¦ã«ãªã‚Šã¾ã™ã€‚
 
-**自動設定**（`.env` に `CF_CUSTOM_DOMAIN` が必要）：
+**è‡ªå‹•è¨­å®š**ï¼ˆ`.env` ã« `CF_CUSTOM_DOMAIN` ãŒå¿…è¦ï¼‰ï¼š
 
-`deploy.sh` がトンネルを自動作成し DNS を設定します。トンネルのホスト名は `vps.<カスタムドメイン>` になります。`./deploy.sh` を実行するだけで、`CF_CUSTOM_DOMAIN` が設定されていればトンネルは自動的に構成されます。
+`deploy.sh` ãŒãƒˆãƒ³ãƒãƒ«ã‚’è‡ªå‹•ä½œæˆã— DNS ã‚’è¨­å®šã—ã¾ã™ã€‚ãƒˆãƒ³ãƒãƒ«ã®ãƒ›ã‚¹ãƒˆåã¯ `vps.<ã‚«ã‚¹ã‚¿ãƒ ãƒ‰ãƒ¡ã‚¤ãƒ³>` ã«ãªã‚Šã¾ã™ã€‚`./deploy.sh` ã‚’å®Ÿè¡Œã™ã‚‹ã ã‘ã§ã€`CF_CUSTOM_DOMAIN` ãŒè¨­å®šã•ã‚Œã¦ã„ã‚Œã°ãƒˆãƒ³ãƒãƒ«ã¯è‡ªå‹•çš„ã«æ§‹æˆã•ã‚Œã¾ã™ã€‚
 
-**手動設定**（カスタムドメインなし）：
+**æ‰‹å‹•è¨­å®š**ï¼ˆã‚«ã‚¹ã‚¿ãƒ ãƒ‰ãƒ¡ã‚¤ãƒ³ãªã—ï¼‰ï¼š
 
-1. CF Dashboard > Zero Trust > Networks > Tunnels に移動
-2. `tg-s3` という名前のトンネルを作成
-3. `http://processor:3000` を指すパブリックホスト名を追加
-4. トンネルトークンを `.env` にコピー：
+1. CF Dashboard > Zero Trust > Networks > Tunnels ã«ç§»å‹•
+2. `Stratum` ã¨ã„ã†åå‰ã®ãƒˆãƒ³ãƒãƒ«ã‚’ä½œæˆ
+3. `http://processor:3000` ã‚’æŒ‡ã™ãƒ‘ãƒ–ãƒªãƒƒã‚¯ãƒ›ã‚¹ãƒˆåã‚’è¿½åŠ 
+4. ãƒˆãƒ³ãƒãƒ«ãƒˆãƒ¼ã‚¯ãƒ³ã‚’ `.env` ã«ã‚³ãƒ”ãƒ¼ï¼š
 
 ```bash
 CF_TUNNEL_TOKEN=eyJhIjo...
 ```
 
-5. デプロイを実行：
+5. ãƒ‡ãƒ—ãƒ­ã‚¤ã‚’å®Ÿè¡Œï¼š
 
 ```bash
 ./deploy.sh
 ```
 
-トンネルは `VPS_URL` の代わりとなり、Worker は直接接続ではなく Cloudflare ネットワーク経由でプロセッサにアクセスします。
+ãƒˆãƒ³ãƒãƒ«ã¯ `VPS_URL` ã®ä»£ã‚ã‚Šã¨ãªã‚Šã€Worker ã¯ç›´æŽ¥æŽ¥ç¶šã§ã¯ãªã Cloudflare ãƒãƒƒãƒˆãƒ¯ãƒ¼ã‚¯çµŒç”±ã§ãƒ—ãƒ­ã‚»ãƒƒã‚µã«ã‚¢ã‚¯ã‚»ã‚¹ã—ã¾ã™ã€‚
 
-### アップデート
+### ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
 
 ```bash
 git pull && ./deploy.sh
 ```
 
-## 方法 2: 手動デプロイ（Docker なし）
+## æ–¹æ³• 2: æ‰‹å‹•ãƒ‡ãƒ—ãƒ­ã‚¤ï¼ˆDocker ãªã—ï¼‰
 
-### Cloudflare Worker のみ（Minimal 構成）
+### Cloudflare Worker ã®ã¿ï¼ˆMinimal æ§‹æˆï¼‰
 
 ```bash
 npm install
 cp .env.example .env
-# .env を編集（TG_BOT_TOKEN と DEFAULT_CHAT_ID のみ必須）
+# .env ã‚’ç·¨é›†ï¼ˆTG_BOT_TOKEN ã¨ DEFAULT_CHAT_ID ã®ã¿å¿…é ˆï¼‰
 
 ./deploy.sh
 ```
 
-スクリプトは Docker が利用できないことを自動検出し、ローカルの wrangler を使用します。以下を実行します：
-1. 設定の検証
-2. D1 データベースの作成とスキーマ初期化
-3. R2 バケットの作成とライフサイクルポリシーの設定
-4. VPS_SECRET の自動生成
-5. D1 に初期 admin S3 認証情報を作成
-6. Cloudflare へのシークレット設定
-7. Worker のデプロイ
-8. Telegram Bot Webhook の登録
+ã‚¹ã‚¯ãƒªãƒ—ãƒˆã¯ Docker ãŒåˆ©ç”¨ã§ããªã„ã“ã¨ã‚’è‡ªå‹•æ¤œå‡ºã—ã€ãƒ­ãƒ¼ã‚«ãƒ«ã® wrangler ã‚’ä½¿ç”¨ã—ã¾ã™ã€‚ä»¥ä¸‹ã‚’å®Ÿè¡Œã—ã¾ã™ï¼š
+1. è¨­å®šã®æ¤œè¨¼
+2. D1 ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã®ä½œæˆã¨ã‚¹ã‚­ãƒ¼ãƒžåˆæœŸåŒ–
+3. R2 ãƒã‚±ãƒƒãƒˆã®ä½œæˆã¨ãƒ©ã‚¤ãƒ•ã‚µã‚¤ã‚¯ãƒ«ãƒãƒªã‚·ãƒ¼ã®è¨­å®š
+4. VPS_SECRET ã®è‡ªå‹•ç”Ÿæˆ
+5. D1 ã«åˆæœŸ admin S3 èªè¨¼æƒ…å ±ã‚’ä½œæˆ
+6. Cloudflare ã¸ã®ã‚·ãƒ¼ã‚¯ãƒ¬ãƒƒãƒˆè¨­å®š
+7. Worker ã®ãƒ‡ãƒ—ãƒ­ã‚¤
+8. Telegram Bot Webhook ã®ç™»éŒ²
 
-### レガシー VPS SSH デプロイ
+### ãƒ¬ã‚¬ã‚·ãƒ¼ VPS SSH ãƒ‡ãƒ—ãƒ­ã‚¤
 
-SSH 経由でリモート VPS にプロセッサをデプロイする場合、`.env` に VPS 設定を追加してください：
+SSH çµŒç”±ã§ãƒªãƒ¢ãƒ¼ãƒˆ VPS ã«ãƒ—ãƒ­ã‚»ãƒƒã‚µã‚’ãƒ‡ãƒ—ãƒ­ã‚¤ã™ã‚‹å ´åˆã€`.env` ã« VPS è¨­å®šã‚’è¿½åŠ ã—ã¦ãã ã•ã„ï¼š
 
 ```bash
 VPS_SSH=user@your-vps-ip
-VPS_DEPLOY_DIR=/opt/tg-s3
+VPS_DEPLOY_DIR=/opt/stratum
 VPS_PORT=3000
 VPS_URL=https://vps.example.com:3000
-# VPS_SECRET は未設定時に自動生成
+# VPS_SECRET ã¯æœªè¨­å®šæ™‚ã«è‡ªå‹•ç”Ÿæˆ
 ```
 
-デプロイ：
+ãƒ‡ãƒ—ãƒ­ã‚¤ï¼š
 
 ```bash
 ./deploy.sh --vps
 ```
 
-VPS デプロイでは以下が実行されます：
-1. SSH 接続の確認
-2. Docker の自動インストール（必要に応じて）
-3. rsync によるプロセッサファイルのアップロード
-4. プロセッサコンテナのビルドと起動
+VPS ãƒ‡ãƒ—ãƒ­ã‚¤ã§ã¯ä»¥ä¸‹ãŒå®Ÿè¡Œã•ã‚Œã¾ã™ï¼š
+1. SSH æŽ¥ç¶šã®ç¢ºèª
+2. Docker ã®è‡ªå‹•ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ï¼ˆå¿…è¦ã«å¿œã˜ã¦ï¼‰
+3. rsync ã«ã‚ˆã‚‹ãƒ—ãƒ­ã‚»ãƒƒã‚µãƒ•ã‚¡ã‚¤ãƒ«ã®ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰
+4. ãƒ—ãƒ­ã‚»ãƒƒã‚µã‚³ãƒ³ãƒ†ãƒŠã®ãƒ“ãƒ«ãƒ‰ã¨èµ·å‹•
 
-## デプロイ後の確認
+## ãƒ‡ãƒ—ãƒ­ã‚¤å¾Œã®ç¢ºèª
 
-### S3 認証情報
+### S3 èªè¨¼æƒ…å ±
 
-S3 認証情報はデプロイ時に 1 回だけ表示されます。以後は Mini App の **Keys** タブで認証情報を管理できます（作成、無効化、バケット別権限設定）。
+S3 èªè¨¼æƒ…å ±ã¯ãƒ‡ãƒ—ãƒ­ã‚¤æ™‚ã« 1 å›žã ã‘è¡¨ç¤ºã•ã‚Œã¾ã™ã€‚ä»¥å¾Œã¯ Mini App ã® **Keys** ã‚¿ãƒ–ã§èªè¨¼æƒ…å ±ã‚’ç®¡ç†ã§ãã¾ã™ï¼ˆä½œæˆã€ç„¡åŠ¹åŒ–ã€ãƒã‚±ãƒƒãƒˆåˆ¥æ¨©é™è¨­å®šï¼‰ã€‚
 
-### S3 アクセスの確認
+### S3 ã‚¢ã‚¯ã‚»ã‚¹ã®ç¢ºèª
 
 ```bash
-# AWS CLI（デプロイ出力の認証情報を使用）
+# AWS CLIï¼ˆãƒ‡ãƒ—ãƒ­ã‚¤å‡ºåŠ›ã®èªè¨¼æƒ…å ±ã‚’ä½¿ç”¨ï¼‰
 aws --endpoint-url https://your-worker.workers.dev s3 ls
 aws --endpoint-url https://your-worker.workers.dev s3 mb s3://test
 aws --endpoint-url https://your-worker.workers.dev s3 cp file.txt s3://test/
 
 # rclone
-rclone config create tgs3 s3 \
+rclone config create stratum s3 \
   provider=Other \
   access_key_id=YOUR_KEY \
   secret_access_key=YOUR_SECRET \
   endpoint=https://your-worker.workers.dev \
   acl=private
-rclone ls tgs3:default
+rclone ls stratum:default
 ```
 
-### Bot の確認
+### Bot ã®ç¢ºèª
 
-Telegram で Bot に `/start` を送信してください。ウェルカムメッセージが返信されれば正常です。
+Telegram ã§ Bot ã« `/start` ã‚’é€ä¿¡ã—ã¦ãã ã•ã„ã€‚ã‚¦ã‚§ãƒ«ã‚«ãƒ ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ãŒè¿”ä¿¡ã•ã‚Œã‚Œã°æ­£å¸¸ã§ã™ã€‚
 
-### Mini App の確認
+### Mini App ã®ç¢ºèª
 
-Bot に `/miniapp` を送信するか、`https://your-worker.workers.dev/miniapp` に直接アクセスしてください。
+Bot ã« `/miniapp` ã‚’é€ä¿¡ã™ã‚‹ã‹ã€`https://your-worker.workers.dev/miniapp` ã«ç›´æŽ¥ã‚¢ã‚¯ã‚»ã‚¹ã—ã¦ãã ã•ã„ã€‚
 
-## カスタムドメインの設定
+## ã‚«ã‚¹ã‚¿ãƒ ãƒ‰ãƒ¡ã‚¤ãƒ³ã®è¨­å®š
 
-1. Cloudflare DNS に Worker を指す CNAME レコードを追加
-2. Cloudflare ダッシュボードで Workers & Pages > 対象の Worker > Settings > Triggers に移動
-3. カスタムドメインを追加
-4. `.env` に `CF_CUSTOM_DOMAIN` を設定して再デプロイ
+1. Cloudflare DNS ã« Worker ã‚’æŒ‡ã™ CNAME ãƒ¬ã‚³ãƒ¼ãƒ‰ã‚’è¿½åŠ 
+2. Cloudflare ãƒ€ãƒƒã‚·ãƒ¥ãƒœãƒ¼ãƒ‰ã§ Workers & Pages > å¯¾è±¡ã® Worker > Settings > Triggers ã«ç§»å‹•
+3. ã‚«ã‚¹ã‚¿ãƒ ãƒ‰ãƒ¡ã‚¤ãƒ³ã‚’è¿½åŠ 
+4. `.env` ã« `CF_CUSTOM_DOMAIN` ã‚’è¨­å®šã—ã¦å†ãƒ‡ãƒ—ãƒ­ã‚¤
 
-## トラブルシューティング
+## ãƒˆãƒ©ãƒ–ãƒ«ã‚·ãƒ¥ãƒ¼ãƒ†ã‚£ãƒ³ã‚°
 
-### Worker が応答しない
-- `npx wrangler tail` でライブログを確認
-- シークレットが設定されているか確認：`npx wrangler secret list`
+### Worker ãŒå¿œç­”ã—ãªã„
+- `npx wrangler tail` ã§ãƒ©ã‚¤ãƒ–ãƒ­ã‚°ã‚’ç¢ºèª
+- ã‚·ãƒ¼ã‚¯ãƒ¬ãƒƒãƒˆãŒè¨­å®šã•ã‚Œã¦ã„ã‚‹ã‹ç¢ºèªï¼š`npx wrangler secret list`
 
-### Bot がメッセージを受信しない
-- Webhook の確認：`curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-- Webhook の再登録：`deploy.sh` で再デプロイしてください（Webhook シークレットは TG_BOT_TOKEN から自動的に導出されます）
+### Bot ãŒãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã‚’å—ä¿¡ã—ãªã„
+- Webhook ã®ç¢ºèªï¼š`curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
+- Webhook ã®å†ç™»éŒ²ï¼š`deploy.sh` ã§å†ãƒ‡ãƒ—ãƒ­ã‚¤ã—ã¦ãã ã•ã„ï¼ˆWebhook ã‚·ãƒ¼ã‚¯ãƒ¬ãƒƒãƒˆã¯ TG_BOT_TOKEN ã‹ã‚‰è‡ªå‹•çš„ã«å°Žå‡ºã•ã‚Œã¾ã™ï¼‰
 
-### D1 エラー
-- データベースの存在確認：`npx wrangler d1 list`
-- スキーマの再初期化：`npm run db:init:remote`
+### D1 ã‚¨ãƒ©ãƒ¼
+- ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã®å­˜åœ¨ç¢ºèªï¼š`npx wrangler d1 list`
+- ã‚¹ã‚­ãƒ¼ãƒžã®å†åˆæœŸåŒ–ï¼š`npm run db:init:remote`
 
-### VPS プロセッサに接続できない
-- コンテナの確認：`docker compose logs processor`
-- ポートの確認：`curl http://localhost:3000/health`
-- 直接ポート公開の代わりに Cloudflare Tunnel の使用を検討
+### VPS ãƒ—ãƒ­ã‚»ãƒƒã‚µã«æŽ¥ç¶šã§ããªã„
+- ã‚³ãƒ³ãƒ†ãƒŠã®ç¢ºèªï¼š`docker compose logs processor`
+- ãƒãƒ¼ãƒˆã®ç¢ºèªï¼š`curl http://localhost:3000/health`
+- ç›´æŽ¥ãƒãƒ¼ãƒˆå…¬é–‹ã®ä»£ã‚ã‚Šã« Cloudflare Tunnel ã®ä½¿ç”¨ã‚’æ¤œè¨Ž

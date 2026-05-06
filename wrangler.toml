@@ -1,4 +1,4 @@
-name = "tg-s3"
+name = "stratum"
 main = "src/index.ts"
 compatibility_date = "2026-03-15"
 workers_dev = true
@@ -9,13 +9,13 @@ S3_REGION = "us-east-1"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "tg-s3-db"
-database_id = ""
+database_name = "stratum-db"
+database_id = "fd191d11-11c0-48dd-9d19-a9b3bbd89425"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "CACHE"
-bucket_name = "tg-s3-cache"
+bucket_name = "stratum-cache"
 
 [triggers]
 crons = ["0 */6 * * *"]  # Every 6 hours: 8 cleanup tasks (expired/orphaned shares, stale multiparts, D1-TG consistency, R2 cache, password locks, orphaned chunks, lifecycle expiration)

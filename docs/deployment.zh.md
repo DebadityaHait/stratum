@@ -1,210 +1,210 @@
-# 部署指南
+# éƒ¨ç½²æŒ‡å—
 
-[English](deployment.md) | [中文](deployment.zh.md) | [日本語](deployment.ja.md) | [Français](deployment.fr.md)
+[English](deployment.md) | [ä¸­æ–‡](deployment.zh.md) | [æ—¥æœ¬èªž](deployment.ja.md) | [FranÃ§ais](deployment.fr.md)
 
-## 部署层级
+## éƒ¨ç½²å±‚çº§
 
-TG-S3 支持三个部署层级：
+Stratum æ”¯æŒä¸‰ä¸ªéƒ¨ç½²å±‚çº§ï¼š
 
-| 层级 | 组件 | 费用 | 功能 |
+| å±‚çº§ | ç»„ä»¶ | è´¹ç”¨ | åŠŸèƒ½ |
 |------|------|------|------|
-| 最小化 | CF Worker + D1 + R2 | $0/月 | S3 API、Bot、Mini App，文件最大 20MB |
-| 标准 | 最小化 + VPS | 约 $4/月 | + 文件最大 2GB，媒体处理 |
-| 增强 | 标准 + CF 付费计划 | 约 $9/月 | + 更高速率限制，更多 D1 查询 |
+| æœ€å°åŒ– | CF Worker + D1 + R2 | $0/æœˆ | S3 APIã€Botã€Mini Appï¼Œæ–‡ä»¶æœ€å¤§ 20MB |
+| æ ‡å‡† | æœ€å°åŒ– + VPS | çº¦ $4/æœˆ | + æ–‡ä»¶æœ€å¤§ 2GBï¼Œåª’ä½“å¤„ç† |
+| å¢žå¼º | æ ‡å‡† + CF ä»˜è´¹è®¡åˆ’ | çº¦ $9/æœˆ | + æ›´é«˜é€ŸçŽ‡é™åˆ¶ï¼Œæ›´å¤š D1 æŸ¥è¯¢ |
 
-## 前提条件
+## å‰ææ¡ä»¶
 
-1. **Telegram Bot** -- 通过 [@BotFather](https://t.me/BotFather) 创建，保存 token
-2. **Telegram 群组** -- 创建群组或超级群组，将 bot 添加为管理员，获取 chat ID
-3. **Cloudflare 账户** -- 在 [dash.cloudflare.com](https://dash.cloudflare.com) 注册
-4. **Node.js 22+** -- wrangler CLI 所需（仅手动部署需要）
+1. **Telegram Bot** -- é€šè¿‡ [@BotFather](https://t.me/BotFather) åˆ›å»ºï¼Œä¿å­˜ token
+2. **Telegram ç¾¤ç»„** -- åˆ›å»ºç¾¤ç»„æˆ–è¶…çº§ç¾¤ç»„ï¼Œå°† bot æ·»åŠ ä¸ºç®¡ç†å‘˜ï¼ŒèŽ·å– chat ID
+3. **Cloudflare è´¦æˆ·** -- åœ¨ [dash.cloudflare.com](https://dash.cloudflare.com) æ³¨å†Œ
+4. **Node.js 22+** -- wrangler CLI æ‰€éœ€ï¼ˆä»…æ‰‹åŠ¨éƒ¨ç½²éœ€è¦ï¼‰
 
-### 获取 Chat ID
+### èŽ·å– Chat ID
 
-临时将 [@userinfobot](https://t.me/userinfobot) 添加到群组中，它会回复 chat ID（一个负数，如 `-1001234567890`）。获取后将其移除。
+ä¸´æ—¶å°† [@userinfobot](https://t.me/userinfobot) æ·»åŠ åˆ°ç¾¤ç»„ä¸­ï¼Œå®ƒä¼šå›žå¤ chat IDï¼ˆä¸€ä¸ªè´Ÿæ•°ï¼Œå¦‚ `-1001234567890`ï¼‰ã€‚èŽ·å–åŽå°†å…¶ç§»é™¤ã€‚
 
-### 创建 Cloudflare API Token
+### åˆ›å»º Cloudflare API Token
 
-Docker 部署需要在 [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) 创建一个包含以下权限的 token：
+Docker éƒ¨ç½²éœ€è¦åœ¨ [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) åˆ›å»ºä¸€ä¸ªåŒ…å«ä»¥ä¸‹æƒé™çš„ tokenï¼š
 - Account / Workers Scripts: Edit
 - Account / D1: Edit
 - Account / R2: Edit
 - Account / Account Settings: Read
-- Account / Cloudflare Tunnel: Edit *（仅使用 tunnel 时需要）*
-- Zone / DNS: Edit *（仅使用 tunnel 配合自定义域名时需要）*
+- Account / Cloudflare Tunnel: Edit *ï¼ˆä»…ä½¿ç”¨ tunnel æ—¶éœ€è¦ï¼‰*
+- Zone / DNS: Edit *ï¼ˆä»…ä½¿ç”¨ tunnel é…åˆè‡ªå®šä¹‰åŸŸåæ—¶éœ€è¦ï¼‰*
 
-## 方法一：Docker 部署（推荐）
+## æ–¹æ³•ä¸€ï¼šDocker éƒ¨ç½²ï¼ˆæŽ¨èï¼‰
 
-适合 VPS 部署，一条命令搞定一切。
+é€‚åˆ VPS éƒ¨ç½²ï¼Œä¸€æ¡å‘½ä»¤æžå®šä¸€åˆ‡ã€‚
 
 ```bash
-# 克隆并配置
-git clone https://github.com/gps949/tg-s3.git
-cd tg-s3
+# å…‹éš†å¹¶é…ç½®
+git clone https://github.com/DebadityaHait/stratum.git
+cd stratum
 cp .env.example .env
 ```
 
-编辑 `.env`，仅需填写 2 项必填值：
+ç¼–è¾‘ `.env`ï¼Œä»…éœ€å¡«å†™ 2 é¡¹å¿…å¡«å€¼ï¼š
 
 ```bash
-# 必填
+# å¿…å¡«
 TG_BOT_TOKEN=123456:ABC-DEF...
 DEFAULT_CHAT_ID=-1001234567890
 
-# Docker 部署
+# Docker éƒ¨ç½²
 CLOUDFLARE_API_TOKEN=your-cf-api-token
 
-# 可选：自定义域名（同时启用 tunnel 自动创建）
+# å¯é€‰ï¼šè‡ªå®šä¹‰åŸŸåï¼ˆåŒæ—¶å¯ç”¨ tunnel è‡ªåŠ¨åˆ›å»ºï¼‰
 CF_CUSTOM_DOMAIN=s3.example.com
 ```
 
-其他凭据（S3 密钥、VPS_SECRET、webhook 密钥）均在部署时**自动生成**。
+å…¶ä»–å‡­æ®ï¼ˆS3 å¯†é’¥ã€VPS_SECRETã€webhook å¯†é’¥ï¼‰å‡åœ¨éƒ¨ç½²æ—¶**è‡ªåŠ¨ç”Ÿæˆ**ã€‚
 
-部署：
+éƒ¨ç½²ï¼š
 
 ```bash
 ./deploy.sh
 ```
 
-脚本自动检测环境并执行相应操作：
-- **宿主机有 Docker：** 构建镜像，部署 CF Worker，配置 tunnel（如已启用），启动所有服务
-- **宿主机无 Docker：** 使用本地 wrangler 直接部署 Worker
+è„šæœ¬è‡ªåŠ¨æ£€æµ‹çŽ¯å¢ƒå¹¶æ‰§è¡Œç›¸åº”æ“ä½œï¼š
+- **å®¿ä¸»æœºæœ‰ Dockerï¼š** æž„å»ºé•œåƒï¼Œéƒ¨ç½² CF Workerï¼Œé…ç½® tunnelï¼ˆå¦‚å·²å¯ç”¨ï¼‰ï¼Œå¯åŠ¨æ‰€æœ‰æœåŠ¡
+- **å®¿ä¸»æœºæ—  Dockerï¼š** ä½¿ç”¨æœ¬åœ° wrangler ç›´æŽ¥éƒ¨ç½² Worker
 
-部署完成后，在 Telegram Mini App 的 Keys 标签页中创建 S3 凭据以连接 S3 客户端。
+éƒ¨ç½²å®ŒæˆåŽï¼Œåœ¨ Telegram Mini App çš„ Keys æ ‡ç­¾é¡µä¸­åˆ›å»º S3 å‡­æ®ä»¥è¿žæŽ¥ S3 å®¢æˆ·ç«¯ã€‚
 
-### Cloudflare Tunnel（推荐用于 VPS）
+### Cloudflare Tunnelï¼ˆæŽ¨èç”¨äºŽ VPSï¼‰
 
-Cloudflare Tunnel 在 processor 和 CF Worker 之间建立安全连接，无需暴露公网端口。
+Cloudflare Tunnel åœ¨ processor å’Œ CF Worker ä¹‹é—´å»ºç«‹å®‰å…¨è¿žæŽ¥ï¼Œæ— éœ€æš´éœ²å…¬ç½‘ç«¯å£ã€‚
 
-**自动配置**（需要在 `.env` 中设置 `CF_CUSTOM_DOMAIN`）：
+**è‡ªåŠ¨é…ç½®**ï¼ˆéœ€è¦åœ¨ `.env` ä¸­è®¾ç½® `CF_CUSTOM_DOMAIN`ï¼‰ï¼š
 
-`deploy.sh` 会自动创建 tunnel 并配置 DNS。tunnel 域名为 `vps.<你的自定义域名>`。只需运行 `./deploy.sh`，设置了 `CF_CUSTOM_DOMAIN` 后 tunnel 会自动配置。
+`deploy.sh` ä¼šè‡ªåŠ¨åˆ›å»º tunnel å¹¶é…ç½® DNSã€‚tunnel åŸŸåä¸º `vps.<ä½ çš„è‡ªå®šä¹‰åŸŸå>`ã€‚åªéœ€è¿è¡Œ `./deploy.sh`ï¼Œè®¾ç½®äº† `CF_CUSTOM_DOMAIN` åŽ tunnel ä¼šè‡ªåŠ¨é…ç½®ã€‚
 
-**手动配置**（无自定义域名时）：
+**æ‰‹åŠ¨é…ç½®**ï¼ˆæ— è‡ªå®šä¹‰åŸŸåæ—¶ï¼‰ï¼š
 
-1. 进入 CF Dashboard > Zero Trust > Networks > Tunnels
-2. 创建名为 `tg-s3` 的 tunnel
-3. 添加公共主机名，指向 `http://processor:3000`
-4. 将 tunnel token 复制到 `.env`：
+1. è¿›å…¥ CF Dashboard > Zero Trust > Networks > Tunnels
+2. åˆ›å»ºåä¸º `Stratum` çš„ tunnel
+3. æ·»åŠ å…¬å…±ä¸»æœºåï¼ŒæŒ‡å‘ `http://processor:3000`
+4. å°† tunnel token å¤åˆ¶åˆ° `.env`ï¼š
 
 ```bash
 CF_TUNNEL_TOKEN=eyJhIjo...
 ```
 
-5. 启动部署：
+5. å¯åŠ¨éƒ¨ç½²ï¼š
 
 ```bash
 ./deploy.sh
 ```
 
-Tunnel 替代了 `VPS_URL`，Worker 通过 Cloudflare 网络访问 processor，而非直接连接。
+Tunnel æ›¿ä»£äº† `VPS_URL`ï¼ŒWorker é€šè¿‡ Cloudflare ç½‘ç»œè®¿é—® processorï¼Œè€Œéžç›´æŽ¥è¿žæŽ¥ã€‚
 
-### 更新
+### æ›´æ–°
 
 ```bash
 git pull && ./deploy.sh
 ```
 
-## 方法二：手动部署（无 Docker）
+## æ–¹æ³•äºŒï¼šæ‰‹åŠ¨éƒ¨ç½²ï¼ˆæ—  Dockerï¼‰
 
-### 仅 Cloudflare Worker（最小化层级）
+### ä»… Cloudflare Workerï¼ˆæœ€å°åŒ–å±‚çº§ï¼‰
 
 ```bash
 npm install
 cp .env.example .env
-# 编辑 .env（仅需 TG_BOT_TOKEN 和 DEFAULT_CHAT_ID）
+# ç¼–è¾‘ .envï¼ˆä»…éœ€ TG_BOT_TOKEN å’Œ DEFAULT_CHAT_IDï¼‰
 
 ./deploy.sh
 ```
 
-脚本自动检测到 Docker 不可用时，会使用本地 wrangler。它将执行以下操作：
-1. 验证配置
-2. 创建 D1 数据库并初始化 schema
-3. 创建 R2 存储桶并设置生命周期策略
-4. 自动生成 VPS_SECRET
-5. 在 D1 中创建初始 admin S3 凭据
-6. 在 Cloudflare 中设置所有 secrets
-7. 部署 Worker
-8. 注册 Telegram Bot webhook
+è„šæœ¬è‡ªåŠ¨æ£€æµ‹åˆ° Docker ä¸å¯ç”¨æ—¶ï¼Œä¼šä½¿ç”¨æœ¬åœ° wranglerã€‚å®ƒå°†æ‰§è¡Œä»¥ä¸‹æ“ä½œï¼š
+1. éªŒè¯é…ç½®
+2. åˆ›å»º D1 æ•°æ®åº“å¹¶åˆå§‹åŒ– schema
+3. åˆ›å»º R2 å­˜å‚¨æ¡¶å¹¶è®¾ç½®ç”Ÿå‘½å‘¨æœŸç­–ç•¥
+4. è‡ªåŠ¨ç”Ÿæˆ VPS_SECRET
+5. åœ¨ D1 ä¸­åˆ›å»ºåˆå§‹ admin S3 å‡­æ®
+6. åœ¨ Cloudflare ä¸­è®¾ç½®æ‰€æœ‰ secrets
+7. éƒ¨ç½² Worker
+8. æ³¨å†Œ Telegram Bot webhook
 
-### 传统 VPS SSH 部署
+### ä¼ ç»Ÿ VPS SSH éƒ¨ç½²
 
-通过 SSH 将 processor 部署到远程 VPS 时，在 `.env` 中添加 VPS 配置：
+é€šè¿‡ SSH å°† processor éƒ¨ç½²åˆ°è¿œç¨‹ VPS æ—¶ï¼Œåœ¨ `.env` ä¸­æ·»åŠ  VPS é…ç½®ï¼š
 
 ```bash
 VPS_SSH=user@your-vps-ip
-VPS_DEPLOY_DIR=/opt/tg-s3
+VPS_DEPLOY_DIR=/opt/stratum
 VPS_PORT=3000
 VPS_URL=https://vps.example.com:3000
-# VPS_SECRET 未设置时自动生成
+# VPS_SECRET æœªè®¾ç½®æ—¶è‡ªåŠ¨ç”Ÿæˆ
 ```
 
-然后部署：
+ç„¶åŽéƒ¨ç½²ï¼š
 
 ```bash
 ./deploy.sh --vps
 ```
 
-VPS 部署将执行以下操作：
-1. 检查 SSH 连通性
-2. 如需要则安装 Docker
-3. 通过 rsync 上传 processor 文件
-4. 构建并启动 processor 容器
+VPS éƒ¨ç½²å°†æ‰§è¡Œä»¥ä¸‹æ“ä½œï¼š
+1. æ£€æŸ¥ SSH è¿žé€šæ€§
+2. å¦‚éœ€è¦åˆ™å®‰è£… Docker
+3. é€šè¿‡ rsync ä¸Šä¼  processor æ–‡ä»¶
+4. æž„å»ºå¹¶å¯åŠ¨ processor å®¹å™¨
 
-## 部署后验证
+## éƒ¨ç½²åŽéªŒè¯
 
-### S3 凭据
+### S3 å‡­æ®
 
-S3 凭据在部署时显示一次。之后可在 Mini App 的 **Keys** 标签页中管理凭据（创建、撤销、设置单桶权限）。
+S3 å‡­æ®åœ¨éƒ¨ç½²æ—¶æ˜¾ç¤ºä¸€æ¬¡ã€‚ä¹‹åŽå¯åœ¨ Mini App çš„ **Keys** æ ‡ç­¾é¡µä¸­ç®¡ç†å‡­æ®ï¼ˆåˆ›å»ºã€æ’¤é”€ã€è®¾ç½®å•æ¡¶æƒé™ï¼‰ã€‚
 
-### 验证 S3 访问
+### éªŒè¯ S3 è®¿é—®
 
 ```bash
-# AWS CLI（使用部署输出中的凭据）
+# AWS CLIï¼ˆä½¿ç”¨éƒ¨ç½²è¾“å‡ºä¸­çš„å‡­æ®ï¼‰
 aws --endpoint-url https://your-worker.workers.dev s3 ls
 aws --endpoint-url https://your-worker.workers.dev s3 mb s3://test
 aws --endpoint-url https://your-worker.workers.dev s3 cp file.txt s3://test/
 
 # rclone
-rclone config create tgs3 s3 \
+rclone config create stratum s3 \
   provider=Other \
   access_key_id=YOUR_KEY \
   secret_access_key=YOUR_SECRET \
   endpoint=https://your-worker.workers.dev \
   acl=private
-rclone ls tgs3:default
+rclone ls stratum:default
 ```
 
-### 验证 Bot
+### éªŒè¯ Bot
 
-在 Telegram 中向你的 bot 发送 `/start`，它应该回复欢迎消息。
+åœ¨ Telegram ä¸­å‘ä½ çš„ bot å‘é€ `/start`ï¼Œå®ƒåº”è¯¥å›žå¤æ¬¢è¿Žæ¶ˆæ¯ã€‚
 
-### 验证 Mini App
+### éªŒè¯ Mini App
 
-向 bot 发送 `/miniapp`，或直接访问 `https://your-worker.workers.dev/miniapp`。
+å‘ bot å‘é€ `/miniapp`ï¼Œæˆ–ç›´æŽ¥è®¿é—® `https://your-worker.workers.dev/miniapp`ã€‚
 
-## 自定义域名
+## è‡ªå®šä¹‰åŸŸå
 
-1. 在 Cloudflare DNS 中添加一条指向你的 worker 的 CNAME 记录
-2. 在 Cloudflare 控制台中，进入 Workers & Pages > 你的 worker > Settings > Triggers
-3. 添加自定义域名
-4. 在 `.env` 中设置 `CF_CUSTOM_DOMAIN`，然后重新部署
+1. åœ¨ Cloudflare DNS ä¸­æ·»åŠ ä¸€æ¡æŒ‡å‘ä½ çš„ worker çš„ CNAME è®°å½•
+2. åœ¨ Cloudflare æŽ§åˆ¶å°ä¸­ï¼Œè¿›å…¥ Workers & Pages > ä½ çš„ worker > Settings > Triggers
+3. æ·»åŠ è‡ªå®šä¹‰åŸŸå
+4. åœ¨ `.env` ä¸­è®¾ç½® `CF_CUSTOM_DOMAIN`ï¼Œç„¶åŽé‡æ–°éƒ¨ç½²
 
-## 故障排查
+## æ•…éšœæŽ’æŸ¥
 
-### Worker 无响应
-- 使用 `npx wrangler tail` 查看实时日志
-- 验证 secrets 是否已设置：`npx wrangler secret list`
+### Worker æ— å“åº”
+- ä½¿ç”¨ `npx wrangler tail` æŸ¥çœ‹å®žæ—¶æ—¥å¿—
+- éªŒè¯ secrets æ˜¯å¦å·²è®¾ç½®ï¼š`npx wrangler secret list`
 
-### Bot 未收到消息
-- 验证 webhook：`curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-- 重新注册：使用 `deploy.sh` 重新部署（webhook 密钥由 TG_BOT_TOKEN 自动派生）
+### Bot æœªæ”¶åˆ°æ¶ˆæ¯
+- éªŒè¯ webhookï¼š`curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
+- é‡æ–°æ³¨å†Œï¼šä½¿ç”¨ `deploy.sh` é‡æ–°éƒ¨ç½²ï¼ˆwebhook å¯†é’¥ç”± TG_BOT_TOKEN è‡ªåŠ¨æ´¾ç”Ÿï¼‰
 
-### D1 错误
-- 检查数据库是否存在：`npx wrangler d1 list`
-- 重新初始化 schema：`npm run db:init:remote`
+### D1 é”™è¯¯
+- æ£€æŸ¥æ•°æ®åº“æ˜¯å¦å­˜åœ¨ï¼š`npx wrangler d1 list`
+- é‡æ–°åˆå§‹åŒ– schemaï¼š`npm run db:init:remote`
 
-### VPS processor 不可达
-- 检查容器：`docker compose logs processor`
-- 验证端口是否开放：`curl http://localhost:3000/health`
-- 考虑使用 Cloudflare Tunnel 代替直接端口暴露
+### VPS processor ä¸å¯è¾¾
+- æ£€æŸ¥å®¹å™¨ï¼š`docker compose logs processor`
+- éªŒè¯ç«¯å£æ˜¯å¦å¼€æ”¾ï¼š`curl http://localhost:3000/health`
+- è€ƒè™‘ä½¿ç”¨ Cloudflare Tunnel ä»£æ›¿ç›´æŽ¥ç«¯å£æš´éœ²
